@@ -303,12 +303,12 @@ class JobService {
         
         // Check if there are any changes
         const hasChanges = newJobs.size !== this.jobs.size || 
-          Array.from(newJobs.keys()).some(key => !this.jobs.has(key)) ||
-          Array.from(this.jobs.keys()).some(key => !newJobs.has(key));
+          (Array.from(newJobs.keys()) as string[]).some(key => !this.jobs.has(key)) ||
+          (Array.from(this.jobs.keys()) as string[]).some(key => !newJobs.has(key));
         
         if (hasChanges) {
           console.log('🔄 JobService: Detected changes from another tab, syncing...');
-          this.jobs = newJobs;
+          this.jobs = newJobs as Map<string, Job>;
           this.notifyListenersOfSync();
         }
       } catch (error) {
@@ -353,7 +353,7 @@ class JobService {
         const newJobs = new Map(data.jobs || []);
         
         if (newJobs.size !== this.jobs.size) {
-          this.jobs = newJobs;
+          this.jobs = newJobs as Map<string, Job>;
           this.notifyListenersOfSync();
         }
       }
@@ -980,8 +980,8 @@ class JobService {
         console.log(`📊 JobService: Storage has ${newJobs.size} jobs, current cache has ${oldSize}`);
         
         // Log job differences for debugging
-        const newJobIds = Array.from(newJobs.keys());
-        const oldJobIds = Array.from(this.jobs.keys());
+        const newJobIds = Array.from(newJobs.keys()) as string[];
+        const oldJobIds = Array.from(this.jobs.keys()) as string[];
         const addedJobs = newJobIds.filter(id => !oldJobIds.includes(id));
         const removedJobs = oldJobIds.filter(id => !newJobIds.includes(id));
         
@@ -993,7 +993,7 @@ class JobService {
         }
         
         // Always update and notify, even if size is same (jobs might have changed)
-        this.jobs = newJobs;
+        this.jobs = newJobs as Map<string, Job>;
         
         // Notify all listeners about the update
         console.log(`📢 JobService: Notifying ${this.listeners.size} listeners...`);

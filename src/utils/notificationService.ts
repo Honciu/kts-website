@@ -68,7 +68,6 @@ export class NotificationService {
         badge: '/icon-72.png',
         tag: `job-${jobId}`,
         requireInteraction: priority === 'urgent',
-        vibrate: priority === 'urgent' ? [200, 100, 200] : [100, 50, 100],
         data: {
           jobId,
           clientName,
@@ -76,24 +75,7 @@ export class NotificationService {
           serviceName,
           employeeName,
           type: 'job_assignment'
-        },
-        actions: [
-          {
-            action: 'accept',
-            title: '✅ Acceptă',
-            icon: '/icons/accept.png'
-          },
-          {
-            action: 'view',
-            title: '👁️ Vizualizează',
-            icon: '/icons/view.png'
-          },
-          {
-            action: 'reject',
-            title: '❌ Respinge',
-            icon: '/icons/reject.png'
-          }
-        ]
+        }
       };
 
       // Show notification
@@ -234,10 +216,10 @@ export class NotificationService {
 
       const subscription = await this.registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: this.urlB64ToUint8Array(
+applicationServerKey: this.urlB64ToUint8Array(
           // În producție aici ar fi cheia VAPID reală
           'BEl62iUYgUivxIkv69yViEuiBIa40HI80NpQq7lNdAoHFYrdKUYfgJGaP5MWaFcnWPXoWq3e4q_Vt8PbQWcH6w'
-        )
+        ) as BufferSource
       });
 
       console.log('Push subscription successful:', subscription);
