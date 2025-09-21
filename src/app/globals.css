@@ -24,3 +24,56 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Responsive design utilities */
+.responsive-container {
+  @media (max-width: 768px) {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+}
+
+.mobile-sidebar {
+  @media (max-width: 1024px) {
+    position: fixed;
+    left: -100%;
+    top: 0;
+    height: 100vh;
+    width: 250px;
+    background: inherit;
+    transition: left 0.3s ease;
+    z-index: 50;
+  }
+}
+
+.mobile-sidebar.open {
+  @media (max-width: 1024px) {
+    left: 0;
+  }
+}
+
+.mobile-overlay {
+  @media (max-width: 1024px) {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 40;
+  }
+}
+
+.mobile-main {
+  @media (max-width: 1024px) {
+    margin-left: 0 !important;
+    width: 100% !important;
+  }
+}
+
+/* Hide desktop sidebar on mobile */
+@media (max-width: 1024px) {
+  .desktop-sidebar {
+    display: none;
+  }
+}

@@ -1,0 +1,171 @@
+// Schema pentru aplicația KTS (Locksmith Management System)
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Utilizatori (admini și lucrători)
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  phone     String?
+  type      UserType
+  password  String   // hash-uit cu bcrypt
+  isActive  Boolean  @default(true)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relații
+  assignedJobs     Job[] @relation("AssignedWorker")
+  createdJobs      Job[] @relation("CreatedByAdmin")
+  jobUpdates       JobUpdate[]
+  notifications    Notification[]
+  accounts         Account[]
+  sessions         Session[]
+  
+  @@map("users")
+}
+
+enum UserType {
+  ADMIN
+  WORKER
+}
+
+// Joburi (lucrări)
+model Job {
+  id                    String      @id @default(cuid())
+  clientName            String
+  clientPhone           String
+  address               String
+  serviceName           String
+  serviceDescription    String?
+  specialInstructions   String?
+  
+  assignedEmployeeId    String
+  assignedEmployeeName  String
+  assignedWorker        User        @relation("AssignedWorker", fields: [assignedEmployeeId], references: [id])
+  
+  status                JobStatus   @default(ASSIGNED)
+  priority              JobPriority @default(NORMAL)
+  
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+  acceptedAt            DateTime?
+  startedAt             DateTime?
+  completedAt           DateTime?
+  
+  // Completion details
+  completionData        Json?       // Stochează datele de completare ca JSON
+  
+  // Relații
+  createdBy             User        @relation("CreatedByAdmin", fields: [createdById], references: [id])
+  createdById           String
+  
+  updates               JobUpdate[]
+  notifications         Notification[]
+  
+  @@map("jobs")
+}
+
+enum JobStatus {
+  ASSIGNED
+  ACCEPTED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  PENDING_APPROVAL
+}
+
+enum JobPriority {
+  NORMAL
+  HIGH
+  URGENT
+}
+
+// Actualizări job-uri (pentru tracking)
+model JobUpdate {
+  id          String    @id @default(cuid())
+  jobId       String
+  job         Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  
+  status      JobStatus
+  timestamp   DateTime  @default(now())
+  workerId    String
+  worker      User      @relation(fields: [workerId], references: [id])
+  workerName  String
+  data        Json?     // Date suplimentare ca JSON
+  
+  @@map("job_updates")
+}
+
+// Notificări
+model Notification {
+  id        String           @id @default(cuid())
+  type      NotificationType
+  title     String
+  message   String
+  
+  jobId     String?
+  job       Job?             @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  
+  workerId  String?
+  worker    User?            @relation(fields: [workerId], references: [id], onDelete: SetNull)
+  
+  timestamp DateTime         @default(now())
+  read      Boolean          @default(false)
+  urgent    Boolean          @default(false)
+  
+  @@map("notifications")
+}
+
+enum NotificationType {
+  JOB_ASSIGNED
+  JOB_ACCEPTED
+  JOB_REJECTED
+  JOB_COMPLETED
+  APPOINTMENT_REMINDER
+}
+
+// Sesiuni pentru NextAuth
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
