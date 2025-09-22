@@ -30,6 +30,7 @@ model User {
   notifications    Notification[]
   accounts         Account[]
   sessions         Session[]
+  weeklyAdsCosts   WeeklyAdsCosts[]
   
   @@map("users")
 }
@@ -168,4 +169,29 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+// Costurile săptămânale pentru ADS (Google Ads, salarii, materiale)
+model WeeklyAdsCosts {
+  id               String    @id @default(cuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  weekStart        DateTime
+  weekEnd          DateTime
+  
+  // Google Ads zilnic (array de 7 valori pentru fiecare zi)
+  dailyGoogleAds   Int[]     // [Luni, Marți, Miercuri, Joi, Vineri, Sâmbătă, Duminică]
+  totalGoogleAds   Int       // Suma valorilor din dailyGoogleAds
+  
+  // Costuri săptămânale
+  weeklySalaries   Int       @default(0)
+  weeklyMaterials  Int       @default(0)
+  
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  
+  // Constraint pentru a evita duplicate-urile
+  @@unique([userId, weekStart])
+  @@map("weekly_ads_costs")
 }
