@@ -106,8 +106,9 @@ export default function NewEmployeesPage() {
       weekEnd.setHours(23, 59, 59, 999);
 
       // Load employees and their data
+      console.log('🔌 Testing API connectivity...');
       const [usersResponse, jobsResponse] = await Promise.all([
-        fetch('/api/employees').then(res => res.json()),
+        fetch('/api/users').then(res => res.json()),
         fetch(`/api/jobs`).then(res => res.json())
       ]);
 
