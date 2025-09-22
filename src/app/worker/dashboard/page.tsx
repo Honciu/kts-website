@@ -86,7 +86,7 @@ export default function WorkerDashboard() {
           
           // Încearcă să găsească joburile după numele lucratorului
           const fallbackJobs = allJobs.filter(job => 
-            job.assignedEmployeeName && 
+            job.assignedEmployeeName && user.name &&
             job.assignedEmployeeName.toLowerCase().includes(user.name.toLowerCase())
           );
           
