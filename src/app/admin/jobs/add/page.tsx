@@ -111,7 +111,7 @@ export default function AddJob() {
         specialInstructions: formData.specialInstructions,
         assignedEmployeeId: formData.assignedEmployeeId || employees[0].id, // Default to first available
         assignedEmployeeName: assignedEmployee?.name || employees[0].name,
-        status: formData.assignedEmployeeId ? 'assigned' : 'assigned', // Always assigned
+        status: 'assigned' as const, // Always assigned - TypeScript fix
         priority: formData.priority,
         createdById: user?.id || 'cmfudaso70000v090g98tkcey' // Real admin ID from seed
       };
