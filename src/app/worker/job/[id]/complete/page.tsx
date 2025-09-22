@@ -206,6 +206,14 @@ export default function CompleteJob() {
       console.log('  - Worker commission:', completedJob.completionData?.workerCommission);
       console.log('  - Photos saved:', completedJob.completionData?.photos?.length || 0);
       
+      // CRITICAL: Force immediate sync to all listeners
+      console.log('🚀 CRITICAL: Triggering immediate force sync for job completion...');
+      await realApiService.forceSync();
+      
+      // Additional delay to ensure propagation
+      console.log('⏳ Waiting 2 seconds for sync propagation...');
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
       // Send completion notification
       await notificationService.sendJobCompletionNotification(
         job.id,

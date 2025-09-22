@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Colors } from '@/constants/colors';
 import AdminLayout from '@/components/AdminLayout';
+import SyncDebugPanel from '@/components/SyncDebugPanel';
 import { Job } from '@/utils/jobService';
 import { realApiService } from '@/utils/realApiService';
 import { 
@@ -43,6 +44,9 @@ export default function AdminJobs() {
   const router = useRouter();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
   const [activeTab, setActiveTab] = useState<JobTab>('current');
   const [editingJob, setEditingJob] = useState<Job | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -93,24 +97,60 @@ export default function AdminJobs() {
     }
   };
 
-  const loadJobs = async () => {
+  const loadJobs = async (forcedSync = false) => {
     setLoading(true);
+    setSyncStatus('syncing');
+    const startTime = Date.now();
+    
     try {
-      console.log('🏢 Admin Jobs: Loading jobs via REAL API...');
+      console.log('🏢 Admin Jobs: Loading jobs via REAL API...', forcedSync ? '(FORCED SYNC)' : '');
+      
+      // Force sync if requested
+      if (forcedSync) {
+        console.log('⚡ Admin Jobs: Force syncing from server...');
+        await realApiService.forceSync();
+      }
+      
       const response = await realApiService.getJobs();
       
       if (response.success) {
-        console.log('✅ Admin Jobs: REAL API success - received', response.data.length, 'jobs');
+        const syncTime = Date.now() - startTime;
+        const statusBreakdown = response.data.reduce((acc: Record<string, number>, job) => {
+          acc[job.status] = (acc[job.status] || 0) + 1;
+          return acc;
+        }, {});
+        
+        console.log('✅ Admin Jobs: REAL API success!');
+        console.log('  - Total jobs:', response.data.length);
+        console.log('  - Sync time:', syncTime + 'ms');
+        console.log('  - Status breakdown:', statusBreakdown);
+        console.log('  - Completed jobs:', response.data.filter(j => j.status === 'completed').length);
+        console.log('  - Completed jobs details:', response.data.filter(j => j.status === 'completed').map(j => ({
+          id: j.id,
+          client: j.clientName,
+          completedAt: j.completedAt,
+          hasCompletionData: !!j.completionData
+        })));
+        
         setJobs(response.data);
+        setSyncStatus('success');
+        setLastSyncTime(new Date());
       } else {
         console.error('❌ Admin Jobs: REAL API failed, error:', response.error);
         setJobs([]);
+        setSyncStatus('error');
       }
     } catch (error) {
       console.error('❌ Admin Jobs: Error loading jobs:', error);
       setJobs([]);
+      setSyncStatus('error');
     } finally {
       setLoading(false);
+      
+      // Auto-reset sync status after 3 seconds
+      setTimeout(() => {
+        setSyncStatus('idle');
+      }, 3000);
     }
   };
 
@@ -489,16 +529,21 @@ export default function AdminJobs() {
               🧹 Curăță DB
             </button>
             <button
-              onClick={() => loadJobs()}
+              onClick={() => loadJobs(true)}
               className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors"
               style={{
-                backgroundColor: Colors.info,
+                backgroundColor: syncStatus === 'syncing' ? Colors.warning : 
+                                 syncStatus === 'success' ? Colors.success : 
+                                 syncStatus === 'error' ? Colors.error : Colors.info,
                 color: Colors.background,
               }}
-              disabled={loading}
+              disabled={loading || syncStatus === 'syncing'}
+              title={`🔄 Force sync from server - Last sync: ${lastSyncTime.toLocaleTimeString('ro-RO')}`}
             >
-              <RotateCcw size={16} />
-              {loading ? 'Se încarcă...' : 'Refresh'}
+              <RotateCcw size={16} className={syncStatus === 'syncing' ? 'animate-spin' : ''} />
+              {syncStatus === 'syncing' ? 'Sincronizare...' : 
+               syncStatus === 'success' ? '✅ Sincronizat' : 
+               syncStatus === 'error' ? '❌ Eroare' : '🔄 Force Sync'}
             </button>
             <button
               onClick={addJob}
@@ -1027,6 +1072,12 @@ export default function AdminJobs() {
           </div>
         </div>
       )}
+
+      {/* Sync Debug Panel */}
+      <SyncDebugPanel 
+        isVisible={showDebugPanel}
+        onToggle={() => setShowDebugPanel(!showDebugPanel)}
+      />
     </AdminLayout>
   );
 }
