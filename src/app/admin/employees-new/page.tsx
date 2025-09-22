@@ -107,13 +107,15 @@ export default function NewEmployeesPage() {
 
       // Load employees and their data
       const [usersResponse, jobsResponse] = await Promise.all([
-        fetch('/api/users').then(res => res.json()),
+        fetch('/api/employees').then(res => res.json()),
         fetch(`/api/jobs`).then(res => res.json())
       ]);
 
       if (usersResponse.success) {
         const allUsers = usersResponse.data;
+        console.log('👥 Loaded users:', allUsers);
         const workers = allUsers.filter((user: any) => user.type === 'WORKER');
+        console.log('👷 Found workers:', workers);
         
         // Load additional data for each worker
         const employeesWithData = await Promise.all(
@@ -193,6 +195,7 @@ export default function NewEmployeesPage() {
 
     } catch (error) {
       console.error('❌ Error loading employees:', error);
+      alert('Eroare la încărcarea angajaților. Verifică consola pentru detalii.');
     } finally {
       setLoading(false);
     }

@@ -5,6 +5,14 @@ import bcrypt from 'bcryptjs'
 // GET /api/employees - Obține toți angajații
 export async function GET() {
   try {
+    console.log('👥 API: Fetching employees...');
+    
+    // First, check if there are any users at all
+    const totalUsers = await prisma.user.count();
+    const totalWorkers = await prisma.user.count({ where: { type: 'WORKER' } });
+    
+    console.log(`📊 Total users in DB: ${totalUsers}, Total workers: ${totalWorkers}`);
+    
     const employees = await prisma.user.findMany({
       where: {
         type: 'WORKER',
@@ -24,6 +32,11 @@ export async function GET() {
         name: 'asc'
       }
     })
+    
+    console.log(`✅ Found ${employees.length} WORKER users:`);
+    employees.forEach(emp => {
+      console.log(`  • ${emp.name} (${emp.email}) - Active: ${emp.isActive}`);
+    });
 
     // Calculate basic statistics for each employee
     const employeesWithStats = employees.map(employee => {
@@ -39,12 +52,14 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       data: employeesWithStats,
+      totalUsers,
+      totalWorkers,
       timestamp: new Date().toISOString()
     })
   } catch (error) {
-    console.error('Error fetching employees:', error)
+    console.error('❌ Error fetching employees:', error)
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch employees' },
+      { success: false, error: `Failed to fetch employees: ${error}` },
       { status: 500 }
     )
   }
