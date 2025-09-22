@@ -97,7 +97,7 @@ export default function AdminDashboard() {
           console.log('👥 Users REAL DATA:');
           console.log('  • Total users from API:', allUsers.length);
           console.log('  • Active workers:', activeEmployees);
-          workers.forEach(worker => {
+          workers.forEach((worker: any) => {
             console.log(`    - ${worker.name} (${worker.email})`);
           });
         } else {
