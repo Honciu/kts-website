@@ -15,7 +15,8 @@ import {
   Menu,
   X,
   LogOut,
-  Settings
+  Settings,
+  Calendar
 } from 'lucide-react';
 
 interface DashboardStats {
@@ -506,6 +507,60 @@ export default function AdminDashboard() {
               <p style={{ color: Colors.textSecondary }}>
                 Aici puteți gestiona toate aspectele afacerii dumneavoastră.
               </p>
+            </div>
+            
+            {/* Current Week Indicator */}
+            <div
+              className="p-4 rounded-lg border"
+              style={{
+                backgroundColor: Colors.surface,
+                borderColor: Colors.secondary,
+                borderWidth: '2px',
+              }}
+            >
+              <div className="flex items-center justify-center gap-4">
+                <div className="flex items-center gap-3">
+                  <Calendar size={24} color={Colors.secondary} />
+                  <div>
+                    <h3 className="text-lg font-semibold" style={{ color: Colors.text }}>
+                      Săptămâna În Curs
+                    </h3>
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-2 h-2 rounded-full animate-pulse"
+                        style={{ backgroundColor: Colors.secondary }}
+                      ></div>
+                      <span className="text-sm" style={{ color: Colors.textSecondary }}>
+                        Live Data
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="text-center">
+                  <p className="text-xl font-bold" style={{ color: Colors.secondary }}>
+                    {(() => {
+                      const now = new Date();
+                      const getWeekStart = (date: Date) => {
+                        const d = new Date(date);
+                        const day = d.getDay();
+                        const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+                        return new Date(d.setDate(diff));
+                      };
+                      const getWeekEnd = (date: Date) => {
+                        const start = getWeekStart(date);
+                        return new Date(start.getTime() + 6 * 24 * 60 * 60 * 1000);
+                      };
+                      const weekStart = getWeekStart(now);
+                      const weekEnd = getWeekEnd(now);
+                      return `${weekStart.getDate()}.${(weekStart.getMonth() + 1).toString().padStart(2, '0')} - ${weekEnd.getDate()}.${(weekEnd.getMonth() + 1).toString().padStart(2, '0')}.${weekEnd.getFullYear()}`;
+                    })()
+                  }
+                  </p>
+                  <p className="text-sm" style={{ color: Colors.textSecondary }}>
+                    Toate datele financiare sunt pentru această perioadă
+                  </p>
+                </div>
+              </div>
             </div>
 
             {/* Stats Grid */}
