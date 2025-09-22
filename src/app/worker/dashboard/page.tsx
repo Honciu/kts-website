@@ -16,7 +16,8 @@ import {
   CheckCircle,
   AlertCircle,
   Navigation,
-  DollarSign
+  DollarSign,
+  MessageCircle
 } from 'lucide-react';
 
 export default function WorkerDashboard() {
@@ -202,18 +203,14 @@ export default function WorkerDashboard() {
     const job = activeJobs.find(j => j.id === jobId);
     if (!job) return;
     
-    const confirmAccept = confirm(`Acceptați lucrarea #${jobId} - ${job.serviceName} pentru ${job.clientName}?`);
-    if (!confirmAccept) return;
-    
+    // Fără confirmare - direct acceptare!
     try {
-      // Folosește API-ul REAL pentru acceptare!
-      const updatedJob = { ...job, status: 'accepted' as const, acceptedAt: new Date().toISOString() };
+      // Folosește API-ul REAL pentru acceptare - direct la 'in_progress'
+      const updatedJob = { ...job, status: 'in_progress' as const, acceptedAt: new Date().toISOString(), startedAt: new Date().toISOString() };
       const response = await realApiService.updateJob(jobId, updatedJob);
       
       if (response.success) {
-        console.log('✅ Job accepted via REAL API:', jobId);
-        alert(`Ați acceptat lucrarea #${jobId}! Veți fi îndrumați spre locație.`);
-        
+        console.log('✅ Job accepted and started via REAL API:', jobId);
         // Refresh immediate pentru a vedea schimbarea
         loadDashboardData();
       } else {
@@ -228,7 +225,16 @@ export default function WorkerDashboard() {
   const navigateToJob = (address: string) => {
     const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(address + ', București')}`;
     window.open(mapsUrl, '_blank');
-    alert('Veți fi redirecționați către Google Maps pentru navigație.');
+    alert('Veți fi redirectionați către Google Maps pentru navigatie.');
+  };
+
+  const handleSendMessage = (phoneNumber: string, job: any) => {
+    // Creează mesajul cu locația și detaliile lucrarii
+    const message = `Bună! Sunt ${user?.name} de la Lăcătuș București. Vă contactez în legătură cu lucrarea #${job.id.substring(0, 8)} - ${job.serviceName}. Locația: ${job.address}. Mulțumesc!`;
+    
+    // Deschide aplicația de mesaje cu numărul și mesajul pregătit
+    const smsUrl = `sms:${phoneNumber}?body=${encodeURIComponent(message)}`;
+    window.open(smsUrl, '_self');
   };
 
   const rejectJob = async (jobId: string) => {
@@ -434,19 +440,54 @@ export default function WorkerDashboard() {
                       </div>
                       
                       <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+                        {job.status === 'assigned' ? (
+                          <>
+                            <button
+                              onClick={() => acceptJob(job.id)}
+                              className="flex items-center justify-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg font-medium transition-colors text-xs sm:text-sm"
+                              style={{
+                                backgroundColor: Colors.success,
+                                color: Colors.primary,
+                              }}
+                              title="Acceptă și începe lucrarea"
+                            >
+                              <CheckCircle size={16} />
+                              <span className="hidden sm:inline">Acceptă și Începe</span>
+                              <span className="sm:hidden">Acceptă</span>
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => router.push(`/worker/job/${job.id}/complete`)}
+                              className="flex items-center justify-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg font-medium transition-colors text-xs sm:text-sm"
+                              style={{
+                                backgroundColor: Colors.success,
+                                color: Colors.primary,
+                              }}
+                              title="Finalizează lucrarea"
+                            >
+                              <CheckCircle size={16} />
+                              <span className="hidden sm:inline">Finalizează</span>
+                              <span className="sm:hidden">Gata</span>
+                            </button>
+                          </>
+                        )}
+                        
                         <button
-                          onClick={() => router.push(`/worker/job/${job.id}`)}
+                          onClick={() => handleSendMessage(job.clientPhone, job)}
                           className="flex items-center justify-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg font-medium transition-colors text-xs sm:text-sm"
                           style={{
-                            backgroundColor: Colors.success,
+                            backgroundColor: Colors.warning,
                             color: Colors.primary,
                           }}
-                          title="Vizualizează detaliile lucrării"
+                          title="Trimite mesaj clientului cu locația"
                         >
-                          <CheckCircle size={16} />
-                          <span className="hidden sm:inline">Vizualizează Lucrarea</span>
-                          <span className="sm:hidden">Vezi</span>
+                          <MessageCircle size={16} />
+                          <span className="hidden sm:inline">Mesaj Client</span>
+                          <span className="sm:hidden">SMS</span>
                         </button>
+                        
                         <button
                           onClick={() => navigateToJob(job.address)}
                           className="flex items-center justify-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg font-medium transition-colors text-xs sm:text-sm"
@@ -460,6 +501,7 @@ export default function WorkerDashboard() {
                           <span className="hidden sm:inline">Navigare</span>
                           <span className="sm:hidden">Maps</span>
                         </button>
+                        
                         <button
                           onClick={() => rejectJob(job.id)}
                           className="flex items-center justify-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg border font-medium transition-colors text-xs sm:text-sm"

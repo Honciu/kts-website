@@ -17,7 +17,8 @@ import {
   Save,
   ArrowLeft,
   Users,
-  Star
+  Star,
+  Calendar
 } from 'lucide-react';
 
 export default function AddJob() {
@@ -34,7 +35,10 @@ export default function AddJob() {
     estimatedTime: '',
     priority: 'normal' as 'normal' | 'urgent' | 'high',
     assignedEmployeeId: '',
-    specialInstructions: ''
+    specialInstructions: '',
+    isAppointment: false,
+    appointmentDate: '',
+    appointmentTime: ''
   });
 
   // Available employees - REAL IDs from seed data!
@@ -91,7 +95,13 @@ export default function AddJob() {
     e.preventDefault();
     
     if (!formData.clientName || !formData.clientPhone || !formData.address || !formData.serviceName) {
-      alert('Te rog completă toate câmpurile obligatorii.');
+      alert('Te rog completează toate câmpurile obligatorii.');
+      return;
+    }
+    
+    // Validare programare
+    if (formData.isAppointment && (!formData.appointmentDate || !formData.appointmentTime)) {
+      alert('Te rog completează data și ora programării.');
       return;
     }
 
@@ -113,7 +123,11 @@ export default function AddJob() {
         assignedEmployeeName: assignedEmployee?.name || employees[0].name,
         status: 'assigned' as const, // Always assigned - TypeScript fix
         priority: formData.priority,
-        createdById: 'cmfudasb40000v090sjooxxj9' // Force use of real admin ID from seed data
+        createdById: 'cmfudasb40000v090sjooxxj9', // Force use of real admin ID from seed data
+        // Programare
+        isAppointment: formData.isAppointment,
+        appointmentDate: formData.isAppointment ? formData.appointmentDate : null,
+        appointmentTime: formData.isAppointment ? formData.appointmentTime : null
       };
 
       // Add job through REAL API instead of localStorage!
@@ -339,6 +353,79 @@ export default function AddJob() {
                 placeholder="Ex: Apelează înainte de sosire, bloc cu interfon..."
               />
             </div>
+          </div>
+
+          {/* Appointment Scheduling */}
+          <div
+            className="p-6 rounded-lg border"
+            style={{
+              backgroundColor: Colors.surface,
+              borderColor: Colors.border,
+            }}
+          >
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2" style={{ color: Colors.text }}>
+              <Calendar size={20} />
+              Programare
+            </h3>
+            
+            <div className="mb-4">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.isAppointment}
+                  onChange={(e) => setFormData(prev => ({...prev, isAppointment: e.target.checked}))}
+                  className="w-4 h-4 rounded"
+                  style={{ accentColor: Colors.secondary }}
+                />
+                <span className="text-sm font-medium" style={{ color: Colors.text }}>
+                  Acest job este o programare (nu urgent)
+                </span>
+              </label>
+              <p className="text-xs mt-1 ml-7" style={{ color: Colors.textSecondary }}>
+                Bifează dacă lucrarea nu este urgentă și trebuie programată la o anumită dată și oră
+              </p>
+            </div>
+
+            {formData.isAppointment && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t" style={{ borderColor: Colors.border }}>
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: Colors.textSecondary }}>
+                    Data programării *
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.appointmentDate}
+                    onChange={(e) => setFormData(prev => ({...prev, appointmentDate: e.target.value}))}
+                    min={new Date().toISOString().split('T')[0]} // Nu permite date în trecut
+                    className="w-full px-4 py-3 rounded-lg border bg-transparent text-sm md:text-base"
+                    style={{ 
+                      borderColor: Colors.border,
+                      backgroundColor: Colors.surfaceLight,
+                      color: Colors.text
+                    }}
+                    required={formData.isAppointment}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: Colors.textSecondary }}>
+                    Ora programării *
+                  </label>
+                  <input
+                    type="time"
+                    value={formData.appointmentTime}
+                    onChange={(e) => setFormData(prev => ({...prev, appointmentTime: e.target.value}))}
+                    className="w-full px-4 py-3 rounded-lg border bg-transparent text-sm md:text-base"
+                    style={{ 
+                      borderColor: Colors.border,
+                      backgroundColor: Colors.surfaceLight,
+                      color: Colors.text
+                    }}
+                    required={formData.isAppointment}
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Employee Assignment */}

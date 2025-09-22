@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Colors } from '@/constants/colors';
 import WorkerLayout from '@/components/WorkerLayout';
 import { jobService, type Job } from '@/utils/jobService';
+import { realApiService } from '@/utils/realApiService';
 import { 
   DollarSign,
   TrendingUp,
@@ -50,30 +51,91 @@ export default function WorkerEarnings() {
       return;
     }
     
-    // Load weekly financial report
-    const loadWeeklyReport = () => {
-      const report = jobService.getWeeklyFinancialReport('worker1', selectedWeek); // În aplicația reală ar fi user.id
-      setWeeklyReport(report);
+    // Load weekly financial report from REAL API
+    const loadWeeklyReport = async () => {
+      try {
+        const apiResponse = await realApiService.getJobs();
+        
+        if (apiResponse.success) {
+          const allJobs = apiResponse.data;
+          const workerId = 'cmfudasin0001v090qs1frclc'; // Force Robert's ID from seed data
+          
+          // Filtrează joburile pentru worker-ul curent
+          const workerJobs = allJobs.filter(job => job.assignedEmployeeId === workerId);
+          
+          // Calculeză săptămâna selectată
+          const weekStart = getWeekStart(selectedWeek);
+          const weekEnd = getWeekEnd(selectedWeek);
+          
+          const weekJobs = workerJobs.filter(job => {
+            const jobDate = new Date(job.createdAt);
+            return jobDate >= weekStart && jobDate <= weekEnd;
+          });
+          
+          const completedJobs = weekJobs.filter(job => ['completed', 'pending_approval'].includes(job.status));
+          const pendingApproval = completedJobs.filter(job => job.status === 'pending_approval');
+          const confirmedJobs = completedJobs.filter(job => job.status === 'completed');
+          
+          const totalEarnings = confirmedJobs.reduce((total, job) => {
+            return total + (job.completionData?.workerCommission || 0);
+          }, 0);
+          
+          const totalCollected = confirmedJobs.reduce((total, job) => {
+            return total + (job.completionData?.totalAmount || 0);
+          }, 0);
+          
+          const travelOnlyJobs = confirmedJobs.filter(job => job.completionData?.onlyTravelFee).length;
+          
+          setWeeklyReport({
+            weekJobs,
+            totalEarnings,
+            totalCollected,
+            amountToHandOver: Math.max(0, totalCollected - totalEarnings),
+            completedJobs: confirmedJobs.length,
+            pendingApproval: pendingApproval.length,
+            travelOnlyJobs
+          });
+          
+          console.log('✅ Worker Earnings: Data loaded from REAL API successfully!');
+        } else {
+          console.error('❌ Worker Earnings: API error:', apiResponse);
+        }
+      } catch (error) {
+        console.error('❌ Worker Earnings: Error loading from API:', error);
+      }
     };
     
     loadWeeklyReport();
     
-    // Add listener for real-time updates
-    jobService.addListener('worker-earnings', {
-      onJobUpdate: (job, update) => {
-        loadWeeklyReport();
-      },
-      onJobComplete: (job) => {
-        loadWeeklyReport();
-      },
-      onJobStatusChange: (jobId, oldStatus, newStatus) => {
+    // Add REAL API listener for real-time updates!
+    realApiService.addChangeListener('worker-earnings-real', (hasChanges) => {
+      if (hasChanges) {
+        console.log('📋 Worker Earnings: REAL API changes detected - syncing!');
         loadWeeklyReport();
       }
     });
     
-    // Cleanup listener
+    // Keep old listeners as backup
+    jobService.addListener('worker-earnings-backup', {
+      onJobUpdate: (job, update) => {
+        console.log('📋 Worker Earnings: Backup job update received', job.id);
+        loadWeeklyReport();
+      },
+      onJobComplete: (job) => {
+        console.log('👏 Worker Earnings: Backup job completed', job.id);
+        loadWeeklyReport();
+      },
+      onJobStatusChange: (jobId, oldStatus, newStatus) => {
+        console.log('🔄 Worker Earnings: Backup status change', jobId, `${oldStatus} -> ${newStatus}`);
+        loadWeeklyReport();
+      }
+    });
+    
+    // Cleanup listeners
     return () => {
-      jobService.removeListener('worker-earnings');
+      console.log('🧹 Worker Earnings: Cleaning up ALL listeners including REAL API');
+      realApiService.removeChangeListener('worker-earnings-real');
+      jobService.removeListener('worker-earnings-backup');
     };
   }, [user, router, selectedWeek]);
 
