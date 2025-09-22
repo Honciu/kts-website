@@ -122,6 +122,12 @@ export default function WorkerDashboard() {
           return total + (job.completionData?.workerCommission || 0);
         }, 0);
         
+        const totalCollected = completedJobs.reduce((total, job) => {
+          return total + (job.completionData?.totalAmount || 0);
+        }, 0);
+        
+        const amountToHandOver = Math.max(0, totalCollected - weeklyEarnings);
+        
         const urgentJobs = activeJobs.filter(job => job.priority === 'urgent').length;
         
         setActiveJobs(activeJobs);
@@ -133,11 +139,17 @@ export default function WorkerDashboard() {
         });
         setWeeklyReport({
           totalEarnings: weeklyEarnings,
-          totalCollected: weeklyEarnings,
-          amountToHandOver: Math.max(0, weeklyEarnings - 100),
+          totalCollected: totalCollected,
+          amountToHandOver: amountToHandOver,
           completedJobs: completedJobs.length,
           pendingApproval: completedJobs.filter(j => j.status === 'pending_approval').length
         });
+        
+        console.log('📊 Worker Dashboard: Financial Summary:');
+        console.log('  - Total earnings (commission):', weeklyEarnings, 'RON');
+        console.log('  - Total collected from clients:', totalCollected, 'RON');
+        console.log('  - Amount to hand over:', amountToHandOver, 'RON');
+        console.log('  - Completed jobs:', completedJobs.length);
         
         console.log('✅ Worker Dashboard: Data loaded from REAL API successfully!');
       } else {

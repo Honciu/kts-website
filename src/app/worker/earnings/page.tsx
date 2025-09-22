@@ -27,6 +27,7 @@ export default function WorkerEarnings() {
   const router = useRouter();
   
   const [selectedWeek, setSelectedWeek] = useState(new Date());
+  const [showAllTime, setShowAllTime] = useState(false);
   const [weeklyReport, setWeeklyReport] = useState<{
     weekJobs: Job[];
     totalEarnings: number;
@@ -109,14 +110,38 @@ export default function WorkerEarnings() {
           const weekStart = getWeekStart(selectedWeek);
           const weekEnd = getWeekEnd(selectedWeek);
           
-          // Filter jobs by completion date (not creation date) for current week
-          const completedJobs = workerJobs.filter(job => {
-            if (!['completed', 'pending_approval'].includes(job.status)) return false;
+          console.log('📅 EARNINGS DATE FILTERING:');
+          console.log('  - Selected week start:', weekStart.toLocaleDateString('ro-RO'));
+          console.log('  - Selected week end:', weekEnd.toLocaleDateString('ro-RO'));
+          
+          // Get ALL completed jobs first
+          const allCompletedJobs = workerJobs.filter(job => ['completed', 'pending_approval'].includes(job.status));
+          
+          console.log('📊 ALL COMPLETED JOBS:', allCompletedJobs.map(j => ({
+            id: j.id,
+            service: j.serviceName,
+            status: j.status,
+            completedAt: j.completedAt,
+            commission: j.completionData?.workerCommission || 0
+          })));
+          
+          // Filter jobs by completion date - either for selected week or all time
+          const completedJobs = showAllTime ? allCompletedJobs : allCompletedJobs.filter(job => {
+            if (!job.completedAt) {
+              console.log(`⚠️ Job ${job.id} has no completedAt date, using createdAt`);
+              const creationDate = new Date(job.createdAt);
+              return creationDate >= weekStart && creationDate <= weekEnd;
+            }
             
-            // Use completion date if available, fallback to creation date
-            const completionDate = new Date(job.completedAt || job.createdAt);
-            return completionDate >= weekStart && completionDate <= weekEnd;
+            const completionDate = new Date(job.completedAt);
+            const inRange = completionDate >= weekStart && completionDate <= weekEnd;
+            
+            console.log(`📅 Job ${job.id}: ${job.completedAt} -> ${inRange ? 'IN RANGE' : 'OUT OF RANGE'}`);
+            return inRange;
           });
+          
+          console.log(`🎯 FINAL FILTERED JOBS (${showAllTime ? 'ALL TIME' : 'CURRENT WEEK'}):`, completedJobs.length);
+          console.log('  - Jobs to display:', completedJobs.map(j => `#${j.id} - ${j.serviceName} (${j.completionData?.workerCommission || 0} RON)`));
           
           const weekJobs = completedJobs; // Only show completed jobs for the week
           const pendingApproval = completedJobs.filter(job => job.status === 'pending_approval');
@@ -183,7 +208,7 @@ export default function WorkerEarnings() {
       realApiService.removeChangeListener('worker-earnings-real');
       jobService.removeListener('worker-earnings-backup');
     };
-  }, [user, router, selectedWeek]);
+  }, [user, router, selectedWeek, showAllTime]);
 
   if (!user || user.type !== 'worker') {
     return (
@@ -278,31 +303,53 @@ Generat: ${new Date().toLocaleString('ro-RO')}`;
             <button
               onClick={() => navigateWeek('prev')}
               className="p-2 rounded-lg transition-colors"
-              style={{ backgroundColor: Colors.surfaceLight }}
+              style={{ 
+                backgroundColor: Colors.surfaceLight,
+                opacity: showAllTime ? 0.5 : 1
+              }}
+              disabled={showAllTime}
             >
               <ChevronLeft size={20} color={Colors.textSecondary} />
             </button>
             
             <div className="text-center">
               <h2 className="text-lg font-bold" style={{ color: Colors.text }}>
-                Săptămâna {formatWeekRange(selectedWeek)}
+                {showAllTime ? 'Toate Joburile' : `Săptămâna ${formatWeekRange(selectedWeek)}`}
               </h2>
-              <button
-                onClick={goToCurrentWeek}
-                className="text-sm mt-1 px-3 py-1 rounded-lg transition-colors"
-                style={{ 
-                  backgroundColor: Colors.secondary,
-                  color: Colors.background
-                }}
-              >
-                Săptămâna curentă
-              </button>
+              <div className="flex items-center justify-center gap-2 mt-2">
+                <button
+                  onClick={goToCurrentWeek}
+                  className="text-xs px-2 py-1 rounded-lg transition-colors"
+                  style={{ 
+                    backgroundColor: Colors.secondary,
+                    color: Colors.background
+                  }}
+                  disabled={showAllTime}
+                >
+                  Săptămâna curentă
+                </button>
+                <button
+                  onClick={() => setShowAllTime(!showAllTime)}
+                  className="text-xs px-2 py-1 rounded-lg transition-colors border"
+                  style={{
+                    backgroundColor: showAllTime ? Colors.success : 'transparent',
+                    borderColor: showAllTime ? Colors.success : Colors.border,
+                    color: showAllTime ? Colors.background : Colors.text
+                  }}
+                >
+                  {showAllTime ? '✅ Toate' : '📅 Toate Timpurile'}
+                </button>
+              </div>
             </div>
 
             <button
               onClick={() => navigateWeek('next')}
               className="p-2 rounded-lg transition-colors"
-              style={{ backgroundColor: Colors.surfaceLight }}
+              style={{ 
+                backgroundColor: Colors.surfaceLight,
+                opacity: showAllTime ? 0.5 : 1
+              }}
+              disabled={showAllTime}
             >
               <ChevronRight size={20} color={Colors.textSecondary} />
             </button>
