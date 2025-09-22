@@ -113,7 +113,7 @@ export default function AddJob() {
         assignedEmployeeName: assignedEmployee?.name || employees[0].name,
         status: 'assigned' as const, // Always assigned - TypeScript fix
         priority: formData.priority,
-        createdById: user?.id || 'cmfudasb40000v090sjooxxj9' // Real admin ID from seed
+        createdById: 'cmfudasb40000v090sjooxxj9' // Force use of real admin ID from seed data
       };
 
       // Add job through REAL API instead of localStorage!
