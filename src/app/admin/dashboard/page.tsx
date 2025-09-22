@@ -183,7 +183,7 @@ export default function AdminDashboard() {
         
         console.log('✅ Dashboard: Real data loaded successfully!');
       } else {
-        console.error('❌ Dashboard: API error:', response.error);
+        console.error('❌ Dashboard: API error:', jobsResponse.error);
       }
     } catch (error) {
       console.error('❌ Dashboard: Error loading data:', error);
