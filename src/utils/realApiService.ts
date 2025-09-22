@@ -34,10 +34,14 @@ class RealAPIService {
     const windowUrl = typeof window !== 'undefined' ? window.location.origin + '/api' : null;
     const fallbackUrl = 'http://localhost:3000/api';
     
-    this.baseUrl = envUrl || windowUrl || fallbackUrl;
+    // Ignoreă URL-urile placeholder
+    const isPlaceholderUrl = envUrl && (envUrl.includes('yourdomain.com') || envUrl.includes('localhost') || envUrl.includes('example.com'));
+    
+    this.baseUrl = (!envUrl || isPlaceholderUrl) ? (windowUrl || fallbackUrl) : envUrl;
     
     console.log('🌐 RealAPIService URL detection:');
     console.log('  - ENV URL:', envUrl);
+    console.log('  - Is Placeholder:', isPlaceholderUrl);
     console.log('  - Window URL:', windowUrl);
     console.log('  - Fallback URL:', fallbackUrl);
     console.log('  - Selected baseUrl:', this.baseUrl);
