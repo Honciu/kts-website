@@ -143,12 +143,18 @@ export default function CompletedJobs() {
     const d = new Date(date);
     const day = d.getDay();
     const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is sunday
-    return new Date(d.setDate(diff));
+    const start = new Date(d.setDate(diff));
+    // Set to beginning of day (00:00:00.000)
+    start.setHours(0, 0, 0, 0);
+    return start;
   };
 
   const getWeekEnd = (date: Date) => {
     const start = getWeekStart(date);
-    return new Date(start.getTime() + 6 * 24 * 60 * 60 * 1000);
+    const end = new Date(start.getTime() + 6 * 24 * 60 * 60 * 1000);
+    // Set to end of day (23:59:59.999) to include the entire last day
+    end.setHours(23, 59, 59, 999);
+    return end;
   };
 
   const formatWeekRange = (date: Date) => {
@@ -167,14 +173,36 @@ export default function CompletedJobs() {
     const start = getWeekStart(week);
     const end = getWeekEnd(week);
     
+    console.log('📅 COMPLETED JOBS DATE FILTERING:');
+    console.log('  - Current date:', new Date().toISOString());
+    console.log('  - Selected week (input):', week.toISOString());
+    console.log('  - Week start:', start.toISOString());
+    console.log('  - Week end:', end.toISOString());
+    console.log('  - Show all time mode:', showAllTime);
+    console.log('  - Total completed jobs to filter:', completedJobs.length);
+    
     const weekJobs = completedJobs.filter(job => {
       const completionDate = new Date(job.completedAt || job.createdAt);
       const inRange = completionDate >= start && completionDate <= end;
+      
       console.log(`📅 Job ${job.id}: ${job.completedAt || job.createdAt} -> ${inRange ? 'IN WEEK' : 'OUT OF WEEK'}`);
+      console.log(`    - Completion date: ${completionDate.toISOString()}`);
+      console.log(`    - Week start: ${start.toISOString()}`);
+      console.log(`    - Week end: ${end.toISOString()}`);
+      console.log(`    - Date comparison: ${completionDate.getTime()} >= ${start.getTime()} && ${completionDate.getTime()} <= ${end.getTime()}`);
+      
       return inRange;
     });
     
-    console.log('📅 COMPLETED JOBS: Week filter result:', weekJobs.length, 'jobs in selected week');
+    console.log('📊 COMPLETED JOBS FILTERING SUMMARY:');
+    console.log(`  - Jobs in selected week: ${weekJobs.length}`);
+    console.log(`  - Total completed jobs: ${completedJobs.length}`);
+    
+    if (weekJobs.length === 0 && completedJobs.length > 0) {
+      console.log('⚠️ NO JOBS IN SELECTED WEEK!');
+      console.log('  - Try navigating to different weeks or use "Toate Timpurile"');
+    }
+    
     return weekJobs;
   };
 
