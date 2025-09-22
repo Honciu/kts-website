@@ -34,6 +34,7 @@ export default function WorkerDashboard() {
     totalEarnings: 0,
     totalCollected: 0,
     amountToHandOver: 0,
+    tvaAmount: 0,
     completedJobs: 0,
     pendingApproval: 0
   });
@@ -128,6 +129,9 @@ export default function WorkerDashboard() {
         
         const amountToHandOver = Math.max(0, totalCollected - weeklyEarnings);
         
+        // Calculează TVA (19% din total încasat)
+        const tvaAmount = Math.round(totalCollected * 0.19);
+        
         const urgentJobs = activeJobs.filter(job => job.priority === 'urgent').length;
         
         setActiveJobs(activeJobs);
@@ -141,6 +145,7 @@ export default function WorkerDashboard() {
           totalEarnings: weeklyEarnings,
           totalCollected: totalCollected,
           amountToHandOver: amountToHandOver,
+          tvaAmount: tvaAmount,
           completedJobs: completedJobs.length,
           pendingApproval: completedJobs.filter(j => j.status === 'pending_approval').length
         });
@@ -149,6 +154,7 @@ export default function WorkerDashboard() {
         console.log('  - Total earnings (commission):', weeklyEarnings, 'RON');
         console.log('  - Total collected from clients:', totalCollected, 'RON');
         console.log('  - Amount to hand over:', amountToHandOver, 'RON');
+        console.log('  - TVA amount (19%):', tvaAmount, 'RON');
         console.log('  - Completed jobs:', completedJobs.length);
         
         console.log('✅ Worker Dashboard: Data loaded from REAL API successfully!');
@@ -604,7 +610,7 @@ export default function WorkerDashboard() {
                 </button>
               </div>
               
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                 <div className="text-center p-3 rounded-lg" style={{ backgroundColor: Colors.surfaceLight }}>
                   <p className="text-lg font-bold" style={{ color: Colors.success }}>
                     {weeklyReport.totalEarnings} RON
@@ -622,6 +628,12 @@ export default function WorkerDashboard() {
                     {weeklyReport.amountToHandOver} RON
                   </p>
                   <p className="text-sm" style={{ color: Colors.textSecondary }}>De predat</p>
+                </div>
+                <div className="text-center p-3 rounded-lg" style={{ backgroundColor: Colors.surfaceLight }}>
+                  <p className="text-lg font-bold" style={{ color: Colors.warning }}>
+                    {weeklyReport.tvaAmount} RON
+                  </p>
+                  <p className="text-sm" style={{ color: Colors.textSecondary }}>TVA 19%</p>
                 </div>
               </div>
               

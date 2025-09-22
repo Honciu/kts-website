@@ -231,6 +231,7 @@ export default function CompletedJobs() {
 Client: ${job.clientName} (${job.clientPhone})
 Adresa: ${job.address}
 Serviciu: ${job.serviceName}
+Lucrător: ${job.assignedEmployeeName || user?.name || 'N/A'}
 Data: ${new Date(job.completedAt || job.createdAt).toLocaleString('ro-RO')}
 Suma: ${job.completionData?.totalAmount || 0} RON
 Comision: ${job.completionData?.workerCommission || 0} RON
