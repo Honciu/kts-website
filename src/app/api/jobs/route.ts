@@ -71,10 +71,13 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/jobs - Creează un job nou  
+// POST /api/jobs - Creea\u0103 un job nou  
 export async function POST(request: NextRequest) {
+  console.log('📅 POST /api/jobs - Starting job creation...');
+  
   try {
     const body = await request.json()
+    console.log('📝 Received request body:', JSON.stringify(body, null, 2));
     
     const {
       clientName,
@@ -176,6 +179,12 @@ export async function POST(request: NextRequest) {
         urgent: job.priority === 'URGENT'
       }
     })
+
+    console.log('✅ Job created successfully:', {
+      id: job.id,
+      clientName: job.clientName,
+      serviceName: job.serviceName
+    });
 
     return NextResponse.json({
       success: true,
