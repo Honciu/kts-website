@@ -148,14 +148,19 @@ export default function AdminTest() {
     
     if (confirmed) {
       const result = clearAllMockData();
-      const message = `🧹 Cleared ${result.cleared} mock data entries - app will now use ONLY real API data`;
-      addToLog(message);
-      alert(`✅ Mock data cleared!\n\n${result.cleared} entries removed.\n\nThe app will now refresh and use ONLY real API data.`);
-      
-      // Force refresh after clearing
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
+      if (result) {
+        const message = `🧹 Cleared ${result.cleared} mock data entries - app will now use ONLY real API data`;
+        addToLog(message);
+        alert(`✅ Mock data cleared!\n\n${result.cleared} entries removed.\n\nThe app will now refresh and use ONLY real API data.`);
+        
+        // Force refresh after clearing
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
+      } else {
+        addToLog('❌ Error clearing mock data');
+        alert('❌ Error clearing mock data. Check console for details.');
+      }
     }
   };
 
