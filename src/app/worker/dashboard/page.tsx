@@ -50,15 +50,24 @@ export default function WorkerDashboard() {
       
       if (apiResponse.success) {
         const allJobs = apiResponse.data;
-        const workerId = user?.id || 'cmfudasin0001v090qs1frclc'; // Robert's ID din seed
+        const workerId = 'cmfudasin0001v090qs1frclc'; // Force Robert's ID from seed data
+        
+        console.log('🔍 Worker Dashboard DEBUG:');
+        console.log('  - User from session:', user);
+        console.log('  - User ID from session:', user?.id);
+        console.log('  - Forced Worker ID:', workerId);
+        console.log('  - Total jobs from API:', allJobs.length);
+        console.log('  - All jobs:', allJobs.map(j => ({ id: j.id, assignedTo: j.assignedEmployeeId, service: j.serviceName, status: j.status })));
         
         // Filtrează joburile pentru worker-ul curent
         const workerJobs = allJobs.filter(job => job.assignedEmployeeId === workerId);
         const activeJobs = workerJobs.filter(job => ['assigned', 'accepted', 'in_progress'].includes(job.status));
         const completedJobs = workerJobs.filter(job => ['completed', 'pending_approval'].includes(job.status));
         
+        console.log(`📊 Worker Dashboard: Found ${workerJobs.length} total jobs for worker ${workerId}`);
         console.log(`📊 Worker Dashboard: Found ${activeJobs.length} active jobs from API`);
-        console.log('📊 Worker Dashboard: Jobs:', activeJobs.map(j => `#${j.id} - ${j.serviceName}`));
+        console.log('📊 Worker Dashboard: Active Jobs:', activeJobs.map(j => `#${j.id} - ${j.serviceName} (${j.status})`));
+        console.log('📊 Worker Dashboard: Worker Jobs:', workerJobs.map(j => `#${j.id} - ${j.serviceName} (${j.status})`));
         
         // Calculează statistici
         const today = new Date();
