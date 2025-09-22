@@ -288,6 +288,42 @@ export default function AdminJobs() {
     }
   };
 
+  const createTestJob = async () => {
+    const confirmCreate = confirm('🧪 CREARE JOB TEST\n\nAceastă operațiune va crea un job de test atribuit lui Robert pentru validarea workflow-ului complet.\n\nApasă OK pentru a continua.');
+    if (!confirmCreate) return;
+    
+    try {
+      console.log('🧪 Admin: Creating test job...');
+      const response = await fetch('/api/admin/create-test-job', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        alert(`✅ Job de test creat cu succes!\n\n📊 Detalii:\n• ID Job: #${result.data.id}\n• Client: ${result.data.clientName}\n• Serviciu: ${result.data.serviceName}\n• Atribuit: ${result.data.assignedEmployeeName}\n\n🔄 Instrucțiuni:\n${result.instructions.join('\n')}\n\n⏰ Creat la: ${new Date(result.timestamp).toLocaleString('ro-RO')}`);
+        
+        // Refresh data to show the new test job
+        await loadJobs();
+        
+        // Switch to current tab to see the new job
+        setActiveTab('current');
+      } else {
+        alert(`❌ Eroare la crearea job-ului de test: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Error creating test job:', error);
+      alert('❌ A apărut o eroare la crearea job-ului de test.');
+    }
+  };
+
   const cleanAllJobs = async () => {
     const confirmClean = confirm('⚠️ ATENȚIE: Această operațiune va șterge TOATE joburile din baza de date!\n\nAceastă acțiune nu poate fi anulată.\n\nApasă OK pentru a continua sau Cancel pentru a anula.');
     if (!confirmClean) return;
@@ -427,6 +463,18 @@ export default function AdminJobs() {
             </p>
           </div>
           <div className="flex gap-2">
+            <button
+              onClick={createTestJob}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors"
+              style={{
+                backgroundColor: Colors.success,
+                color: Colors.background,
+              }}
+              title="🧪 Creează un job de test pentru validarea workflow-ului"
+            >
+              <Plus size={16} />
+              🧪 Test Job
+            </button>
             <button
               onClick={cleanAllJobs}
               className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors border-2"

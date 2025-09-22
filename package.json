@@ -12,7 +12,9 @@
     "db:generate": "prisma generate",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
-    "db:deploy": "prisma migrate deploy"
+    "db:deploy": "prisma migrate deploy",
+    "test:workflow": "node test-workflow.js",
+    "test:workflow:verbose": "node --trace-warnings test-workflow.js"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
