@@ -19,7 +19,8 @@ import {
   Copy,
   Eye,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  RefreshCw
 } from 'lucide-react';
 
 export default function WorkerEarnings() {
@@ -28,6 +29,8 @@ export default function WorkerEarnings() {
   
   const [selectedWeek, setSelectedWeek] = useState(new Date());
   const [showAllTime, setShowAllTime] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
   const [weeklyReport, setWeeklyReport] = useState<{
     weekJobs: Job[];
     totalEarnings: number;
@@ -53,7 +56,14 @@ export default function WorkerEarnings() {
     }
     
     // Load weekly financial report from REAL API
-    const loadWeeklyReport = async () => {
+    const loadWeeklyReport = async (forceRefresh = false) => {
+      setIsRefreshing(true);
+      
+      if (forceRefresh) {
+        console.log('⚡ WORKER EARNINGS: FORCE REFRESH TRIGGERED!');
+        await realApiService.forceSync();
+      }
+      
       try {
         const apiResponse = await realApiService.getJobs();
         
@@ -143,6 +153,16 @@ export default function WorkerEarnings() {
           console.log(`🎯 FINAL FILTERED JOBS (${showAllTime ? 'ALL TIME' : 'CURRENT WEEK'}):`, completedJobs.length);
           console.log('  - Jobs to display:', completedJobs.map(j => `#${j.id} - ${j.serviceName} (${j.completionData?.workerCommission || 0} RON)`));
           
+          if (completedJobs.length === 0) {
+            console.log('⚠️ WORKER EARNINGS: NO JOBS TO DISPLAY!');
+            console.log('  - Total worker jobs found:', workerJobs.length);
+            console.log('  - Show all time mode:', showAllTime);
+            console.log('  - Selected week:', `${weekStart.toLocaleDateString('ro-RO')} - ${weekEnd.toLocaleDateString('ro-RO')}`);
+            if (!showAllTime) {
+              console.log('  - Try toggling "Toate Timpurile" to see all completed jobs');
+            }
+          }
+          
           const weekJobs = completedJobs; // Only show completed jobs for the week
           const pendingApproval = completedJobs.filter(job => job.status === 'pending_approval');
           const confirmedJobs = completedJobs.filter(job => job.status === 'completed');
@@ -173,16 +193,19 @@ export default function WorkerEarnings() {
         }
       } catch (error) {
         console.error('❌ Worker Earnings: Error loading from API:', error);
+      } finally {
+        setIsRefreshing(false);
+        setLastRefreshTime(new Date());
       }
     };
     
-    loadWeeklyReport();
+    loadWeeklyReport(false);
     
     // Add REAL API listener for real-time updates!
     realApiService.addChangeListener('worker-earnings-real', (hasChanges) => {
       if (hasChanges) {
         console.log('📋 Worker Earnings: REAL API changes detected - syncing!');
-        loadWeeklyReport();
+        loadWeeklyReport(false);
       }
     });
     
@@ -190,15 +213,15 @@ export default function WorkerEarnings() {
     jobService.addListener('worker-earnings-backup', {
       onJobUpdate: (job, update) => {
         console.log('📋 Worker Earnings: Backup job update received', job.id);
-        loadWeeklyReport();
+        loadWeeklyReport(false);
       },
       onJobComplete: (job) => {
         console.log('👏 Worker Earnings: Backup job completed', job.id);
-        loadWeeklyReport();
+        loadWeeklyReport(false);
       },
       onJobStatusChange: (jobId, oldStatus, newStatus) => {
         console.log('🔄 Worker Earnings: Backup status change', jobId, `${oldStatus} -> ${newStatus}`);
-        loadWeeklyReport();
+        loadWeeklyReport(false);
       }
     });
     
@@ -278,17 +301,33 @@ Generat: ${new Date().toLocaleString('ro-RO')}`;
             </p>
           </div>
           
-          <button
-            onClick={copyEarningsReport}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors"
-            style={{
-              backgroundColor: Colors.secondary,
-              color: Colors.background,
-            }}
-          >
-            <Copy size={16} />
-            Copiază Raport
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => loadWeeklyReport(true)}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg font-medium transition-colors text-sm"
+              style={{
+                backgroundColor: isRefreshing ? Colors.warning : Colors.info,
+                color: Colors.background,
+              }}
+              disabled={isRefreshing}
+              title={`Force refresh earnings data - Last update: ${lastRefreshTime.toLocaleTimeString('ro-RO')}`}
+            >
+              <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
+              {isRefreshing ? 'Actualizez...' : '🔄 Refresh'}
+            </button>
+            
+            <button
+              onClick={copyEarningsReport}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors"
+              style={{
+                backgroundColor: Colors.secondary,
+                color: Colors.background,
+              }}
+            >
+              <Copy size={16} />
+              Copiază Raport
+            </button>
+          </div>
         </div>
 
         {/* Week Navigation */}

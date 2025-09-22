@@ -51,9 +51,18 @@ export default function AdminDashboard() {
     weeklyProfit: 0
   });
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
+  const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const loadDashboardData = async () => {
+  const loadDashboardData = async (forceRefresh = false) => {
     setLoading(true);
+    setIsRefreshing(true);
+    
+    if (forceRefresh) {
+      console.log('⚡ ADMIN DASHBOARD: FORCE REFRESH TRIGGERED!');
+      // Force sync from API first
+      await realApiService.forceSync();
+    }
     try {
       // FORCE clear any mock data first
       if (typeof window !== 'undefined') {
@@ -260,6 +269,8 @@ export default function AdminDashboard() {
       console.error('❌ Dashboard: Error loading data:', error);
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
+      setLastRefreshTime(new Date());
     }
   };
 
@@ -394,6 +405,21 @@ export default function AdminDashboard() {
               </div>
             </div>
             <div className="flex items-center gap-2 md:gap-4">
+              {/* Force Refresh Button */}
+              <button
+                onClick={() => loadDashboardData(true)}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg font-medium transition-colors text-sm"
+                style={{
+                  backgroundColor: isRefreshing ? Colors.warning : Colors.info,
+                  color: Colors.background,
+                }}
+                disabled={isRefreshing}
+                title={`Force refresh dashboard data - Last update: ${lastRefreshTime.toLocaleTimeString('ro-RO')}`}
+              >
+                <BarChart3 size={16} className={isRefreshing ? 'animate-spin' : ''} />
+                {isRefreshing ? 'Actualizez...' : '🔄 Refresh'}
+              </button>
+              
               <div className="text-right hidden sm:block">
                 <p className="font-medium text-sm md:text-base" style={{ color: Colors.text }}>
                   {user.name}
