@@ -21,6 +21,9 @@ class LocationNotificationService {
   private isTracking = false;
   private lastKnownLocation: LocationData | null = null;
   private notificationPermission: NotificationPermission = 'default';
+  private permissionsChecked = false;
+  private readonly PERMISSIONS_KEY = 'worker_permissions_granted';
+  private readonly PERMISSIONS_DENIED_KEY = 'worker_permissions_denied';
 
   constructor() {
     this.initializeService();
@@ -46,6 +49,54 @@ class LocationNotificationService {
 
     this.notificationPermission = Notification.permission;
     console.log('🔔 Current notification permission:', this.notificationPermission);
+    
+    // Încarcă starea permisiunilor
+    this.loadPermissionsState();
+  }
+  
+  /**
+   * Încarcă starea permisiunilor din localStorage
+   */
+  private loadPermissionsState() {
+    try {
+      const permissionsGranted = localStorage.getItem(this.PERMISSIONS_KEY);
+      const permissionsDenied = localStorage.getItem(this.PERMISSIONS_DENIED_KEY);
+      
+      if (permissionsGranted === 'true') {
+        console.log('✅ Permissions were previously granted');
+        this.permissionsChecked = true;
+        
+        // Verifică dacă permisiunile sunt încă active
+        if (Notification.permission === 'granted') {
+          console.log('✅ Notification permission still active');
+        }
+      } else if (permissionsDenied === 'true') {
+        console.log('❌ Permissions were previously denied');
+        this.permissionsChecked = true;
+      }
+    } catch (error) {
+      console.error('❌ Error loading permissions state:', error);
+    }
+  }
+  
+  /**
+   * Salvează starea permisiunilor
+   */
+  private savePermissionsState(granted: boolean) {
+    try {
+      if (granted) {
+        localStorage.setItem(this.PERMISSIONS_KEY, 'true');
+        localStorage.removeItem(this.PERMISSIONS_DENIED_KEY);
+        console.log('✅ Permissions state saved as granted');
+      } else {
+        localStorage.setItem(this.PERMISSIONS_DENIED_KEY, 'true');
+        localStorage.removeItem(this.PERMISSIONS_KEY);
+        console.log('❌ Permissions state saved as denied');
+      }
+      this.permissionsChecked = true;
+    } catch (error) {
+      console.error('❌ Error saving permissions state:', error);
+    }
   }
 
   /**
@@ -74,7 +125,14 @@ class LocationNotificationService {
     if (Notification.permission === 'granted') {
       console.log('✅ Notification permission already granted');
       this.notificationPermission = 'granted';
+      this.savePermissionsState(true);
       return true;
+    }
+    
+    // Dacă a fost refuzată anterior, nu cere din nou
+    if (this.permissionsChecked && localStorage.getItem(this.PERMISSIONS_DENIED_KEY) === 'true') {
+      console.log('⚠️ Notification permission was previously denied, skipping request');
+      return false;
     }
 
     // Cere permisiunea
@@ -84,19 +142,22 @@ class LocationNotificationService {
       
       if (permission === 'granted') {
         console.log('✅ Notification permission granted!');
+        this.savePermissionsState(true);
         // Trimite o notificare de test
         this.showNotification({
           title: '🔔 Notificări activate!',
-          message: 'Vei primi notificări pentru joburi noi și programări.',
+          message: 'Vei primi notificări pentru joburi noi și progrămări.',
           type: 'general'
         });
         return true;
       } else {
         console.warn('❌ Notification permission denied');
+        this.savePermissionsState(false);
         return false;
       }
     } catch (error) {
       console.error('❌ Error requesting notification permission:', error);
+      this.savePermissionsState(false);
       return false;
     }
   }
@@ -405,6 +466,71 @@ class LocationNotificationService {
     }
   }
 
+  /**
+   * Resetare permisiuni (pentru debugging)
+   */
+  resetPermissions() {
+    try {
+      localStorage.removeItem(this.PERMISSIONS_KEY);
+      localStorage.removeItem(this.PERMISSIONS_DENIED_KEY);
+      this.permissionsChecked = false;
+      console.log('✅ Permissions state reset successfully');
+    } catch (error) {
+      console.error('❌ Error resetting permissions:', error);
+    }
+  }
+  
+  /**
+   * Verifică dacă permisiunile sunt active
+   */
+  arePermissionsGranted(): boolean {
+    return Notification.permission === 'granted' && this.isTracking;
+  }
+  
+  /**
+   * Notificare pentru job nou atribuit
+   */
+  showJobAssignedNotification(jobId: string, clientName: string, serviceName: string, priority: string) {
+    const isUrgent = priority === 'urgent';
+    const title = isUrgent ? '🔥 JOB URGENT ATRIBUIT!' : '🔧 Job nou atribuit';
+    const message = `${serviceName} pentru ${clientName}${isUrgent ? ' - URGENT!' : ''}`;
+    
+    this.showNotification({
+      title,
+      message,
+      jobId,
+      type: 'job_assigned',
+      urgent: isUrgent
+    });
+  }
+  
+  /**
+   * Notificare pentru programare nouă
+   */
+  showAppointmentScheduledNotification(appointmentDate: string, appointmentTime: string, clientName: string, serviceName: string) {
+    const date = new Date(appointmentDate);
+    const formattedDate = date.toLocaleDateString('ro-RO');
+    
+    this.showNotification({
+      title: '📅 Programare nouă',
+      message: `${serviceName} pentru ${clientName} pe ${formattedDate} la ${appointmentTime}`,
+      type: 'appointment_scheduled'
+    });
+  }
+  
+  /**
+   * Notificare pentru transfer bancar aprobat
+   */
+  showTransferApprovedNotification(jobId: string, amount: number, clientName: string) {
+    this.showNotification({
+      title: '✅ Transfer aprobat!',
+      message: `Comisionul de ${amount} RON pentru jobul cu ${clientName} a fost aprobat.`,
+      jobId,
+      type: 'job_update',
+      urgent: false
+    });
+  }
+  
   /**
    * Curățenie la închidere
    */

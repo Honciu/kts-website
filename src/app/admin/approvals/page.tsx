@@ -183,6 +183,20 @@ export default function AdminApprovals() {
       console.log('  - Status:', updateResponse.data.status);
       console.log('  - Worker commission:', updateResponse.data.completionData?.workerCommission);
       
+      // Trimite notificare push către lucrător pentru aprobare
+      if (typeof window !== 'undefined') {
+        try {
+          const { locationNotificationService } = await import('@/utils/locationNotificationService');
+          locationNotificationService.showTransferApprovedNotification(
+            updateResponse.data.id,
+            updateResponse.data.completionData?.workerCommission || 0,
+            updateResponse.data.clientName
+          );
+        } catch (error) {
+          console.error('❌ Error sending approval notification:', error);
+        }
+      }
+      
       // Force immediate sync to propagate changes
       console.log('🚀 CRITICAL: Triggering immediate force sync for approval...');
       await realApiService.forceSync();

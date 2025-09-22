@@ -199,6 +199,7 @@ export default function WorkerLayout({ children, currentPage, pageTitle }: Worke
                 {isMobileMenuOpen ? <X size={20} color={Colors.textSecondary} /> : <Menu size={20} color={Colors.textSecondary} />}
               </button>
               
+              
               <Wrench size={32} color={Colors.secondary} />
               <div>
                 <h1 className="text-lg md:text-xl font-bold" style={{ color: Colors.secondary }}>

@@ -20,6 +20,11 @@ interface Job {
   startedAt?: string;
   completedAt?: string;
   
+  // Appointment fields
+  isAppointment?: boolean;
+  appointmentDate?: string;
+  appointmentTime?: string;
+  
   // Completion details
   completionData?: {
     paymentMethod: 'cash' | 'card' | 'bank_transfer';

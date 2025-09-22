@@ -222,6 +222,32 @@ export default function CompleteJob() {
         job.serviceName
       );
 
+      // AUTO-COPY job details to clipboard for WhatsApp
+      const tvaLine = completionData.tvaAmount > 0 ? `\nTVA încasat: ${completionData.tvaAmount} RON (pentru companie)` : '';
+      const jobDetails = `✅ LUCRARE FINALIZATĂ #${job.id}\n\n` +
+        `📋 DETALII LUCRARE:\n` +
+        `• Client: ${job.clientName} (${job.clientPhone})\n` +
+        `• Adresa: ${job.address}\n` +
+        `• Serviciu: ${job.serviceName}\n` +
+        `• Lucrător: ${user?.name || 'N/A'}\n` +
+        `• Data finalizării: ${new Date().toLocaleString('ro-RO')}\n\n` +
+        `💰 DETALII FINANCIARE:\n` +
+        `• Suma totală: ${completionData.totalAmount} RON\n` +
+        `• Comision lucrător: ${calculateCommission().toFixed(2)} RON${tvaLine}\n` +
+        `• Plată: ${completionData.paymentMethod === 'cash' ? 'Numerar' : completionData.paymentMethod === 'card' ? 'Card' : 'Transfer bancar'}\n` +
+        `${completionData.bankAccount ? `• Cont: ${completionData.bankAccount}\n` : ''}` +
+        `${completionData.onlyTravelFee ? '• Tip: Doar deplasare\n' : ''}` +
+        `• Poze: ${completionData.jobPhotos.length}\n\n` +
+        `📝 DESCRIERE:\n${completionData.workDescription}\n` +
+        `${completionData.notes ? `\nNOTE: ${completionData.notes}` : ''}`;
+      
+      try {
+        await navigator.clipboard.writeText(jobDetails);
+        console.log('📋 Job details copied to clipboard automatically!');
+      } catch (error) {
+        console.log('❌ Failed to copy job details to clipboard:', error);
+      }
+
       // Show success message
       if (completedJob.status === 'pending_approval') {
         alert(`✅ Lucrare înregistrată cu succes!
@@ -233,7 +259,9 @@ ${completionData.tvaAmount > 0 ? `• TVA pentru companie: ${completionData.tvaA
 ` : ''}• Metoda de plată: Transfer bancar - ${completionData.bankAccount}
 • Poze încărcate: ${completionData.jobPhotos.length}
 
-⏳ Lucrarea va apărea în câștiguri după aprobarea administratorului pentru transferurile bancare.`);
+⏳ Lucrarea va apărea în câștiguri după aprobarea administratorului pentru transferurile bancare.
+
+📋 Detaliile complete au fost copiate automat în clipboard pentru WhatsApp!`);
       } else {
         alert(`✅ Lucrare finalizată cu succes!
         
@@ -245,7 +273,9 @@ ${completionData.tvaAmount > 0 ? `• TVA pentru companie: ${completionData.tvaA
 • Poze încărcate: ${completionData.jobPhotos.length}
 
 💰 Câștigul a fost adăugat automat în contul tău!
-🔄 Sincronizare în timp real activă - jobul va apărea în toate paginile în 2-3 secunde!`);
+🔄 Sincronizare în timp real activă - jobul va apărea în toate paginile în 2-3 secunde!
+
+📋 Detaliile complete au fost copiate automat în clipboard pentru WhatsApp!`);
       }
 
       router.push('/worker/completed-jobs');

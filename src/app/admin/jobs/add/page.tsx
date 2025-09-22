@@ -108,8 +108,8 @@ export default function AddJob() {
         createdById: 'cmfudasb40000v090sjooxxj9', // Force use of real admin ID from seed data
         // Programare
         isAppointment: formData.isAppointment,
-        appointmentDate: formData.isAppointment ? formData.appointmentDate : null,
-        appointmentTime: formData.isAppointment ? formData.appointmentTime : null
+        appointmentDate: formData.isAppointment ? formData.appointmentDate : undefined,
+        appointmentTime: formData.isAppointment ? formData.appointmentTime : undefined
       };
 
       // Add job through REAL API instead of localStorage!
@@ -120,13 +120,61 @@ export default function AddJob() {
       }
       
       const createdJob = response.data;
-      console.log('\u2705 Job created successfully via REAL API:', createdJob);
+      console.log('✅ Job created successfully via REAL API:', createdJob);
+      
+      // Trimite notificare push către lucrător dacă este atribuit
+      if (assignedEmployee && typeof window !== 'undefined') {
+        // Import dinamic pentru a evita erorile SSR
+        const { locationNotificationService } = await import('@/utils/locationNotificationService');
+        
+        if (createdJob.isAppointment && createdJob.appointmentDate && createdJob.appointmentTime) {
+          // Notificare pentru programare
+          locationNotificationService.showAppointmentScheduledNotification(
+            createdJob.appointmentDate,
+            createdJob.appointmentTime,
+            createdJob.clientName,
+            createdJob.serviceName
+          );
+        } else {
+          // Notificare pentru job urgent
+          locationNotificationService.showJobAssignedNotification(
+            createdJob.id,
+            createdJob.clientName,
+            createdJob.serviceName,
+            createdJob.priority
+          );
+        }
+      }
+
+      // AUTO-COPY job details to clipboard for WhatsApp
+      const appointmentInfo = (createdJob.isAppointment && createdJob.appointmentDate && createdJob.appointmentTime)
+        ? `\n📅 PROGRAMARE: ${new Date(createdJob.appointmentDate).toLocaleDateString('ro-RO')} la ${createdJob.appointmentTime}\n` 
+        : '\n🚨 JOB URGENT - ACUM\n';
+      
+      const jobForWhatsApp = `🔧 JOB NOU ATRIBUIT #${createdJob.id}\n\n` +
+        `👤 LUCRĂTOR ATRIBUIT: ${assignedEmployee?.name || 'Neatribuit'}\n` +
+        `📞 TELEFON LUCRĂTOR: ${assignedEmployee?.phone || 'N/A'}${appointmentInfo}\n` +
+        `👥 CLIENT: ${createdJob.clientName}\n` +
+        `📱 TELEFON CLIENT: ${createdJob.clientPhone}\n` +
+        `📍 ADRESA: ${createdJob.address}\n\n` +
+        `⚡ SERVICIU: ${createdJob.serviceName}\n` +
+        `📝 DESCRIERE: ${createdJob.serviceDescription || 'N/A'}\n` +
+        `${createdJob.specialInstructions ? `📋 INSTRUCȚIUNI SPECIALE: ${createdJob.specialInstructions}\n` : ''}` +
+        `⚠️ PRIORITATE: ${createdJob.priority === 'urgent' ? '🔥 URGENT' : createdJob.priority === 'high' ? '⚡ MARE' : '✅ NORMALĂ'}\n\n` +
+        `📅 CREAT LA: ${new Date().toLocaleString('ro-RO')}`;
+      
+      try {
+        await navigator.clipboard.writeText(jobForWhatsApp);
+        console.log('📋 Job details copied to clipboard for WhatsApp!');
+      } catch (error) {
+        console.log('❌ Failed to copy job details to clipboard:', error);
+      }
 
       // Show success message
       if (assignedEmployee) {
-        alert(`✅ Lucrarea #${createdJob.id} a fost creată și atribuită către ${assignedEmployee.name}!\n📱 ${assignedEmployee.name} va primi o notificare.`);
+        alert(`✅ Lucrarea #${createdJob.id} a fost creată și atribuită către ${assignedEmployee.name}!\n📱 ${assignedEmployee.name} va primi o notificare.\n\n📋 Detaliile jobului au fost copiate automat în clipboard pentru WhatsApp!`);
       } else {
-        alert(`✅ Lucrarea #${createdJob.id} a fost creată cu succes!\nRămâne în așteptarea atribuirii.`);
+        alert(`✅ Lucrarea #${createdJob.id} a fost creată cu succes!\nRămâne în așteptarea atribuirii.\n\n📋 Detaliile jobului au fost copiate automat în clipboard pentru WhatsApp!`);
       }
 
       // Redirect back to jobs page
