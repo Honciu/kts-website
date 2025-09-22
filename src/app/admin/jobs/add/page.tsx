@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Colors } from '@/constants/colors';
 import AdminLayout from '@/components/AdminLayout';
 import { jobService, type Job } from '@/utils/jobService';
+import { realApiService } from '@/utils/realApiService';
 import { 
   User,
   MapPin,
@@ -36,10 +37,10 @@ export default function AddJob() {
     specialInstructions: ''
   });
 
-  // Available employees (in real app this would come from API)
+  // Available employees - REAL IDs from seed data!
   const [employees] = useState([
     {
-      id: 'worker1',
+      id: 'cmfudasin0001v090qs1frclc', // Robert's real ID from seed
       name: 'Robert',
       username: 'Robert',
       phone: '+40712345678',
@@ -49,7 +50,7 @@ export default function AddJob() {
       completedJobs: 145
     },
     {
-      id: 'worker2', 
+      id: 'cmfudasm70002v090fuu57u5k', // Demo User's real ID
       name: 'Demo User',
       username: 'demo',
       phone: '+40721000000',
@@ -59,12 +60,12 @@ export default function AddJob() {
       completedJobs: 89
     },
     {
-      id: 'worker3',
+      id: 'cmfudaspq0003v09023ejiha2', // Lacatus 01's real ID
       name: 'Lacatus 01',
       username: 'lacatus01', 
       phone: '+40731000000',
       salaryPercentage: 28,
-      isOnDuty: false,
+      isOnDuty: true, // Schimb la true pentru a fi disponibil
       rating: 4.9,
       completedJobs: 210
     }
@@ -101,23 +102,29 @@ export default function AddJob() {
       const assignedEmployee = formData.assignedEmployeeId ? 
         employees.find(emp => emp.id === formData.assignedEmployeeId) : null;
       
-      const newJobData: Omit<Job, 'id' | 'createdAt'> = {
+      const newJobData = {
         clientName: formData.clientName,
         clientPhone: formData.clientPhone,
         address: formData.address,
         serviceName: formData.serviceName,
         serviceDescription: formData.serviceDescription,
         specialInstructions: formData.specialInstructions,
-        assignedEmployeeId: formData.assignedEmployeeId || 'unassigned',
-        assignedEmployeeName: assignedEmployee?.name || 'Neatribuit',
-        status: formData.assignedEmployeeId ? 'assigned' : 'pending_approval',
-        priority: formData.priority
+        assignedEmployeeId: formData.assignedEmployeeId || employees[0].id, // Default to first available
+        assignedEmployeeName: assignedEmployee?.name || employees[0].name,
+        status: formData.assignedEmployeeId ? 'assigned' : 'assigned', // Always assigned
+        priority: formData.priority,
+        createdById: user?.id || 'cmfudaso70000v090g98tkcey' // Real admin ID from seed
       };
 
-      // Add job through jobService
-      const createdJob = jobService.addJob(newJobData);
+      // Add job through REAL API instead of localStorage!
+      const response = await realApiService.createJob(newJobData);
       
-      console.log('✅ Job created successfully:', createdJob);
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to create job');
+      }
+      
+      const createdJob = response.data;
+      console.log('\u2705 Job created successfully via REAL API:', createdJob);
 
       // Show success message
       if (assignedEmployee) {

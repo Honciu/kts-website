@@ -255,12 +255,12 @@ export default function WorkerDashboard() {
   return (
     <WorkerLayout currentPage="/worker/dashboard" pageTitle="Dashboard Lucrător">
       <div className="space-y-6">
-        {/* Welcome */}
-        <div>
-          <h2 className="text-2xl font-bold mb-2" style={{ color: Colors.text }}>
+        {/* Welcome - Responsive */}
+        <div className="text-center sm:text-left">
+          <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold mb-2" style={{ color: Colors.text }}>
             Bună ziua, {user.name}!
           </h2>
-          <p style={{ color: Colors.textSecondary }}>
+          <p className="text-sm sm:text-base" style={{ color: Colors.textSecondary }}>
             Iată programul și lucrările dumneavoastră pentru astăzi.
           </p>
         </div>
@@ -307,24 +307,25 @@ export default function WorkerDashboard() {
                 borderColor: Colors.border,
               }}
             >
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-semibold" style={{ color: Colors.text }}>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+                <h3 className="text-lg sm:text-xl font-semibold text-center sm:text-left" style={{ color: Colors.text }}>
                   Lucrări Active ({activeJobs.length})
                 </h3>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3 justify-center sm:justify-end">
                   <button
                     onClick={() => {
                       console.log('🔄 Manual refresh requested');
                       loadDashboardData();
                     }}
                     disabled={isRefreshing}
-                    className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors mr-2 ${isRefreshing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`px-2 sm:px-3 py-1 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${isRefreshing ? 'opacity-50 cursor-not-allowed' : ''}`}
                     style={{
                       backgroundColor: Colors.info,
                       color: Colors.background,
                     }}
                   >
-                    {isRefreshing ? '🔄 Se actualizează...' : '🔄 Refresh'}
+                    <span className="hidden sm:inline">{isRefreshing ? '🔄 Se actualizează...' : '🔄 Refresh'}</span>
+                    <span className="sm:hidden">🔄</span>
                   </button>
                   <button
                     onClick={async () => {
@@ -338,36 +339,38 @@ export default function WorkerDashboard() {
                         alert('❌ Eroare la cross-browser sync!');
                       }
                     }}
-                    className="px-3 py-1 rounded-lg text-sm font-medium transition-colors mr-2"
+                    className="px-2 sm:px-3 py-1 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors"
                     style={{
                       backgroundColor: Colors.warning,
                       color: Colors.background,
                     }}
                   >
-                    🌍 Cross-Browser
+                    <span className="hidden sm:inline">🌍 Cross-Browser</span>
+                    <span className="sm:hidden">🌍</span>
                   </button>
                   <button
                     onClick={() => router.push('/worker/completed-jobs')}
-                    className="px-3 py-1 rounded-lg text-sm font-medium transition-colors"
+                    className="px-2 sm:px-3 py-1 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors"
                     style={{
                       backgroundColor: Colors.secondary,
                       color: Colors.background,
                     }}
                   >
-                    📋 Joburi Finalizate
+                    <span className="hidden sm:inline">📋 Joburi Finalizate</span>
+                    <span className="sm:hidden">📋</span>
                   </button>
-                  <div className="flex items-center gap-4">
+                  <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-4 text-center sm:text-left">
                     <div className="flex items-center gap-2">
                       <div
                         className={`w-3 h-3 rounded-full ${isRefreshing ? 'animate-pulse' : ''}`}
                         style={{ backgroundColor: isRefreshing ? Colors.warning : Colors.success }}
                       ></div>
-                      <span className="text-sm" style={{ color: Colors.textSecondary }}>
+                      <span className="text-xs sm:text-sm" style={{ color: Colors.textSecondary }}>
                         {isRefreshing ? 'Actualizare...' : 'Online'}
                       </span>
                     </div>
                     <span className="text-xs" style={{ color: Colors.textMuted }}>
-                      Ultima sync: {lastSyncTime.toLocaleTimeString('ro-RO')}
+                      Sync: {lastSyncTime.toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
                 </div>
@@ -385,11 +388,11 @@ export default function WorkerDashboard() {
                         borderWidth: job.priority === 'urgent' ? '2px' : '1px',
                       }}
                     >
-                      <div className="flex items-start justify-between mb-4">
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-4 gap-2">
                         <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <h4 className="font-semibold" style={{ color: Colors.text }}>
-                              #{job.id} - {job.serviceName}
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-2">
+                            <h4 className="font-semibold text-sm sm:text-base" style={{ color: Colors.text }}>
+                              #{job.id.substring(0, 8)}... - {job.serviceName}
                             </h4>
                             {job.priority === 'urgent' && (
                               <span
@@ -403,28 +406,28 @@ export default function WorkerDashboard() {
                               </span>
                             )}
                           </div>
-                          <p className="flex items-center gap-2 mb-1" style={{ color: Colors.textSecondary }}>
-                            <User size={16} />
-                            {job.clientName}
+                          <p className="flex items-center gap-2 mb-1 text-xs sm:text-sm" style={{ color: Colors.textSecondary }}>
+                            <User size={14} />
+                            <span className="truncate">{job.clientName}</span>
                           </p>
-                          <p className="flex items-center gap-2 mb-1" style={{ color: Colors.textSecondary }}>
-                            <MapPin size={16} />
-                            {job.address}
+                          <p className="flex items-start gap-2 mb-1 text-xs sm:text-sm" style={{ color: Colors.textSecondary }}>
+                            <MapPin size={14} className="mt-0.5 flex-shrink-0" />
+                            <span className="line-clamp-2">{job.address}</span>
                           </p>
-                          <p className="flex items-center gap-2 mb-1" style={{ color: Colors.textSecondary }}>
-                            📞 {job.clientPhone}
+                          <p className="flex items-center gap-2 mb-1 text-xs sm:text-sm" style={{ color: Colors.textSecondary }}>
+                            📞 <a href={`tel:${job.clientPhone}`} className="hover:underline">{job.clientPhone}</a>
                           </p>
-                          <p className="flex items-center gap-2" style={{ color: Colors.textSecondary }}>
-                            <Clock size={16} />
-                            Creat: {new Date(job.createdAt).toLocaleTimeString('ro-RO')}
+                          <p className="flex items-center gap-2 text-xs" style={{ color: Colors.textSecondary }}>
+                            <Clock size={14} />
+                            <span className="hidden sm:inline">Creat: </span>{new Date(job.createdAt).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' })}
                           </p>
                         </div>
                       </div>
                       
-                      <div className="flex gap-3">
+                      <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                         <button
                           onClick={() => router.push(`/worker/job/${job.id}`)}
-                          className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors"
+                          className="flex items-center justify-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg font-medium transition-colors text-xs sm:text-sm"
                           style={{
                             backgroundColor: Colors.success,
                             color: Colors.primary,
@@ -432,11 +435,12 @@ export default function WorkerDashboard() {
                           title="Vizualizează detaliile lucrării"
                         >
                           <CheckCircle size={16} />
-                          Vizualizează Lucrarea
+                          <span className="hidden sm:inline">Vizualizează Lucrarea</span>
+                          <span className="sm:hidden">Vezi</span>
                         </button>
                         <button
                           onClick={() => navigateToJob(job.address)}
-                          className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors"
+                          className="flex items-center justify-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg font-medium transition-colors text-xs sm:text-sm"
                           style={{
                             backgroundColor: Colors.info,
                             color: Colors.primary,
@@ -444,11 +448,12 @@ export default function WorkerDashboard() {
                           title="Deschide Google Maps pentru navigație"
                         >
                           <Navigation size={16} />
-                          Navigare
+                          <span className="hidden sm:inline">Navigare</span>
+                          <span className="sm:hidden">Maps</span>
                         </button>
                         <button
                           onClick={() => rejectJob(job.id)}
-                          className="flex items-center gap-2 px-4 py-2 rounded-lg border font-medium transition-colors"
+                          className="flex items-center justify-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg border font-medium transition-colors text-xs sm:text-sm"
                           style={{
                             borderColor: Colors.border,
                             color: Colors.textSecondary,
@@ -456,7 +461,7 @@ export default function WorkerDashboard() {
                           title="Respinge lucrarea"
                         >
                           <AlertCircle size={16} />
-                          Respinge
+                          <span>Respinge</span>
                         </button>
                       </div>
                     </div>
