@@ -40,11 +40,12 @@ export default function AdminLayout({ children, currentPage, pageTitle }: AdminL
 
   const menuItems = [
     { icon: BarChart3, label: 'Dashboard', path: '/admin/dashboard' },
+    { icon: TrendingUp, label: 'Dashboard Angajați', path: '/admin/employees-dashboard' },
     { icon: Users, label: 'Angajați', path: '/admin/employees' },
     { icon: Briefcase, label: 'Lucrări', path: '/admin/jobs' },
     { icon: CheckCircle, label: 'Aprobare Transferuri', path: '/admin/approvals' },
     { icon: MapPin, label: 'Locații Lucrători', path: '/admin/worker-locations' },
-    { icon: TrendingUp, label: 'Istoric Lucrători', path: '/admin/workers-reports' },
+    { icon: BarChart3, label: 'Istoric Lucrători', path: '/admin/workers-reports' },
     { icon: FileText, label: 'Rapoarte', path: '/admin/reports' },
     { icon: DollarSign, label: 'Reclame', path: '/admin/ads' },
     { icon: TestTube, label: 'Test Live Sync', path: '/admin/test' },

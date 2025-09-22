@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Colors } from '@/constants/colors';
 import { notificationService } from '@/utils/notificationService';
 import { jobService } from '@/utils/jobService';
+import { realApiService } from '@/utils/realApiService';
 import { 
   ArrowLeft,
   Camera,
@@ -134,29 +135,47 @@ export default function CompleteJob() {
     setIsSubmitting(true);
 
     try {
-      // Simulate API call to save completion data
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // Complete job using jobService
-      const completedJob = jobService.completeJob(
-        job.id,
-        'worker1', // În aplicația reală ar fi user.id
-        user?.name || 'Worker',
-        {
-          paymentMethod: completionData.paymentMethod,
-          totalAmount: completionData.totalAmount,
-          workerCommission: calculateCommission(),
-          bankAccount: completionData.bankAccount,
-          onlyTravelFee: completionData.onlyTravelFee,
-          workDescription: completionData.workDescription,
-          photos: completionData.jobPhotos.map((_, index) => `/completed-job-${job.id}-${index + 1}.jpg`),
-          notes: completionData.notes
+      // Get the job from real API first
+      const jobsResponse = await realApiService.getJobs();
+      let currentJob = null;
+      
+      if (jobsResponse.success) {
+        currentJob = jobsResponse.data.find(j => j.id === job.id);
+        if (!currentJob) {
+          throw new Error('Job not found');
         }
-      );
-
-      if (!completedJob) {
-        throw new Error('Failed to complete job');
+      } else {
+        throw new Error('Could not fetch job data');
       }
+
+      // Prepare completion data
+      const completionDataForApi = {
+        paymentMethod: completionData.paymentMethod,
+        totalAmount: completionData.totalAmount,
+        workerCommission: calculateCommission(),
+        bankAccount: completionData.bankAccount,
+        onlyTravelFee: completionData.onlyTravelFee,
+        workDescription: completionData.workDescription,
+        photos: completionData.jobPhotos.map((_, index) => `/completed-job-${job.id}-${index + 1}.jpg`),
+        notes: completionData.notes
+      };
+
+      // Update job status to completed via REAL API
+      const updatedJob = {
+        ...currentJob,
+        status: completionData.paymentMethod === 'bank_transfer' ? 'pending_approval' : 'completed',
+        completedAt: new Date().toISOString(),
+        completionData: completionDataForApi
+      };
+      
+      const response = await realApiService.updateJob(job.id, updatedJob);
+      
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to complete job via API');
+      }
+      
+      const completedJob = response.data;
+      console.log('✅ Job completed via REAL API:', completedJob);
       
       // Send completion notification
       await notificationService.sendJobCompletionNotification(

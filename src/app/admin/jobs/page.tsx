@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Colors } from '@/constants/colors';
 import AdminLayout from '@/components/AdminLayout';
 import { jobService, type Job } from '@/utils/jobService';
+import { realApiService } from '@/utils/realApiService';
 import '@/utils/debugUtils'; // Load debugging utilities
 import {
   MapPin,
@@ -17,7 +18,9 @@ import {
   Trash2,
   RefreshCw,
   Clock,
-  X
+  X,
+  Image,
+  Eye
 } from 'lucide-react';
 
 export default function AdminJobs() {
@@ -26,6 +29,8 @@ export default function AdminJobs() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [editingJob, setEditingJob] = useState<Job | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showPhotosModal, setShowPhotosModal] = useState(false);
+  const [selectedJobPhotos, setSelectedJobPhotos] = useState<{job: Job, photos: string[]}>({job: {} as Job, photos: []});
   const [editForm, setEditForm] = useState({
     clientName: '',
     clientPhone: '',
@@ -50,29 +55,52 @@ export default function AdminJobs() {
       return;
     }
     
-    // Load jobs from service
-    const loadJobs = () => {
-      const allJobs = jobService.getAllJobs();
-      setJobs(allJobs);
+    // Load jobs from REAL API
+    const loadJobs = async () => {
+      try {
+        const apiResponse = await realApiService.getJobs();
+        
+        if (apiResponse.success) {
+          setJobs(apiResponse.data);
+          console.log('✅ Admin Jobs: Loaded', apiResponse.data.length, 'jobs from REAL API');
+        } else {
+          console.error('❌ Admin Jobs: API error:', apiResponse);
+        }
+      } catch (error) {
+        console.error('❌ Admin Jobs: Error loading from API:', error);
+      }
     };
     
     loadJobs();
     
-    // Add listener for real-time updates
-    jobService.addListener('admin-jobs', {
+    // Add REAL API listener for real-time updates!
+    realApiService.addChangeListener('admin-jobs-real', (hasChanges) => {
+      if (hasChanges) {
+        console.log('📋 Admin Jobs: REAL API changes detected - syncing!');
+        loadJobs();
+      }
+    });
+    
+    // Keep old listeners as backup
+    jobService.addListener('admin-jobs-backup', {
       onJobUpdate: (job, update) => {
+        console.log('📋 Admin Jobs: Backup job update received', job.id);
         loadJobs();
       },
       onJobComplete: (job) => {
+        console.log('👏 Admin Jobs: Backup job completed', job.id);
         loadJobs();
       },
       onJobStatusChange: (jobId, oldStatus, newStatus) => {
+        console.log('🔄 Admin Jobs: Backup status change', jobId, `${oldStatus} -> ${newStatus}`);
         loadJobs();
       }
     });
     
     return () => {
-      jobService.removeListener('admin-jobs');
+      console.log('🧹 Admin Jobs: Cleaning up ALL listeners including REAL API');
+      realApiService.removeChangeListener('admin-jobs-real');
+      jobService.removeListener('admin-jobs-backup');
     };
   }, [user, router]);
 
@@ -180,6 +208,17 @@ export default function AdminJobs() {
     
     jobService.deleteJob(jobId);
     alert(`Lucrarea #${jobId} a fost ștearsă definitiv!`);
+  };
+
+  const viewJobPhotos = (job: Job) => {
+    const photos = job.completionData?.photos || [];
+    if (photos.length === 0) {
+      alert('Această lucrare nu are poze uploaded.');
+      return;
+    }
+    
+    setSelectedJobPhotos({ job, photos });
+    setShowPhotosModal(true);
   };
 
   return (
@@ -294,9 +333,28 @@ export default function AdminJobs() {
                             <User size={16} className="flex-shrink-0" />
                             Atribuit: {job.assignedEmployeeName}
                           </p>
+                          {job.completionData && (
+                            <p className="flex items-center gap-2 text-green-600">
+                              ✅ Finalizat: {job.completionData.totalAmount} RON ({job.completionData.paymentMethod})
+                            </p>
+                          )}
                         </div>
                       </div>
                       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
+                        {job.completionData?.photos && job.completionData.photos.length > 0 && (
+                          <button
+                            onClick={() => viewJobPhotos(job)}
+                            className="px-3 py-1 rounded-lg font-medium text-sm transition-colors flex items-center gap-2"
+                            style={{
+                              backgroundColor: Colors.secondary,
+                              color: Colors.primary,
+                            }}
+                            title={`Vezi ${job.completionData.photos.length} poze uploadate`}
+                          >
+                            <Image size={16} />
+                            Vezi Poze ({job.completionData.photos.length})
+                          </button>
+                        )}
                         <button
                           onClick={() => editJob(job)}
                           className="px-3 py-1 rounded-lg font-medium text-sm transition-colors flex items-center gap-2"
@@ -565,6 +623,76 @@ export default function AdminJobs() {
                     >
                       Salvează Modificările
                     </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Photos Modal */}
+            {showPhotosModal && (
+              <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+                <div
+                  className="max-w-4xl w-full max-h-[90vh] overflow-y-auto rounded-lg border"
+                  style={{
+                    backgroundColor: Colors.surface,
+                    borderColor: Colors.border,
+                  }}
+                >
+                  <div className="p-6 border-b" style={{ borderColor: Colors.border }}>
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-semibold" style={{ color: Colors.text }}>
+                        📷 Poze Lucrare #{selectedJobPhotos.job.id} - {selectedJobPhotos.job.serviceName}
+                      </h3>
+                      <button
+                        onClick={() => setShowPhotosModal(false)}
+                        className="p-2 rounded-lg transition-colors"
+                        style={{ backgroundColor: Colors.surfaceLight }}
+                      >
+                        <X size={20} color={Colors.textSecondary} />
+                      </button>
+                    </div>
+                    <p className="text-sm mt-2" style={{ color: Colors.textSecondary }}>
+                      Client: {selectedJobPhotos.job.clientName} • {selectedJobPhotos.job.address}
+                    </p>
+                    {selectedJobPhotos.job.completionData && (
+                      <p className="text-sm mt-1" style={{ color: Colors.textSecondary }}>
+                        Finalizat: {selectedJobPhotos.job.completionData.totalAmount} RON ({selectedJobPhotos.job.completionData.paymentMethod})
+                        {selectedJobPhotos.job.completionData.workDescription && ` • ${selectedJobPhotos.job.completionData.workDescription}`}
+                      </p>
+                    )}
+                  </div>
+                  
+                  <div className="p-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {selectedJobPhotos.photos.map((photo, index) => (
+                        <div key={index} className="relative">
+                          <img
+                            src={photo}
+                            alt={`Poza ${index + 1} - ${selectedJobPhotos.job.serviceName}`}
+                            className="w-full h-64 object-cover rounded-lg border"
+                            style={{ borderColor: Colors.border }}
+                            onClick={() => window.open(photo, '_blank')}
+                            title="Click pentru a deschide în mărime naturală"
+                            style={{ cursor: 'pointer' }}
+                          />
+                          <div 
+                            className="absolute bottom-2 right-2 px-2 py-1 rounded text-xs font-medium"
+                            style={{
+                              backgroundColor: 'rgba(0,0,0,0.7)',
+                              color: 'white'
+                            }}
+                          >
+                            {index + 1}/{selectedJobPhotos.photos.length}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    <div className="mt-6 text-center">
+                      <p className="text-sm" style={{ color: Colors.textSecondary }}>
+                        📝 Click pe o poza pentru a o deschide în mărime naturală
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
