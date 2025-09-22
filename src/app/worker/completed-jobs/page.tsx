@@ -213,7 +213,14 @@ export default function CompletedJobs() {
     totalJobs: weekJobs.length,
     totalEarnings: weekJobs.filter(j => j.status === 'completed').reduce((sum, job) => sum + (job.completionData?.workerCommission || 0), 0),
     pendingApproval: weekJobs.filter(j => j.status === 'pending_approval').reduce((sum, job) => sum + (job.completionData?.workerCommission || 0), 0),
-    travelOnlyJobs: weekJobs.filter(j => j.completionData?.onlyTravelFee).length
+    travelOnlyJobs: weekJobs.filter(j => j.completionData?.onlyTravelFee).length,
+    // Calculează TVA doar din joburile cu plata cash și cu TVA specificat
+    tvaAmount: weekJobs.filter(j => j.status === 'completed').reduce((sum, job) => {
+      if (job.completionData?.paymentMethod === 'cash' && job.completionData?.tvaAmount) {
+        return sum + (job.completionData.tvaAmount || 0);
+      }
+      return sum;
+    }, 0)
   };
 
   const navigateWeek = (direction: 'prev' | 'next') => {
@@ -227,6 +234,10 @@ export default function CompletedJobs() {
   };
 
   const copyJobDetails = (job: Job) => {
+    const tvaLine = (job.completionData?.paymentMethod === 'cash' && job.completionData?.tvaAmount && job.completionData.tvaAmount > 0) 
+      ? `\nTVA (CASH): ${job.completionData.tvaAmount} RON` 
+      : '';
+    
     const details = `Lucrare #${job.id}
 Client: ${job.clientName} (${job.clientPhone})
 Adresa: ${job.address}
@@ -234,7 +245,7 @@ Serviciu: ${job.serviceName}
 Lucrător: ${job.assignedEmployeeName || user?.name || 'N/A'}
 Data: ${new Date(job.completedAt || job.createdAt).toLocaleString('ro-RO')}
 Suma: ${job.completionData?.totalAmount || 0} RON
-Comision: ${job.completionData?.workerCommission || 0} RON
+Comision: ${job.completionData?.workerCommission || 0} RON${tvaLine}
 Plată: ${job.completionData?.paymentMethod === 'cash' ? 'Numerar' : job.completionData?.paymentMethod === 'card' ? 'Card' : 'Transfer bancar'}
 ${job.completionData?.onlyTravelFee ? 'Tip: Doar deplasare' : ''}
 Descriere: ${job.completionData?.workDescription || ''}
@@ -364,7 +375,7 @@ ${job.completionData?.notes ? `Note: ${job.completionData.notes}` : ''}`
           </div>
 
           {/* Week Statistics */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 md:gap-6">
             <div
               className="p-6 rounded-lg border"
               style={{
@@ -433,7 +444,29 @@ ${job.completionData?.notes ? `Note: ${job.completionData.notes}` : ''}`
                 </span>
               </div>
               <p className="font-medium" style={{ color: Colors.textSecondary }}>
-                Doar Deplasări
+                Doar Deplăsări
+              </p>
+            </div>
+
+            {/* TVA Card - doar dacă există TVA */}
+            <div
+              className="p-6 rounded-lg border"
+              style={{
+                backgroundColor: Colors.surface,
+                borderColor: Colors.border,
+              }}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <TrendingUp size={24} color={Colors.warning} />
+                <span className="text-2xl font-bold" style={{ color: Colors.text }}>
+                  {weekStats.tvaAmount} RON
+                </span>
+              </div>
+              <p className="font-medium" style={{ color: Colors.textSecondary }}>
+                TVA de Predat
+              </p>
+              <p className="text-xs" style={{ color: Colors.textMuted }}>
+                Doar joburi CASH+TVA
               </p>
             </div>
           </div>
@@ -533,6 +566,17 @@ ${job.completionData?.notes ? `Note: ${job.completionData.notes}` : ''}`
                               {getPaymentMethodLabel(job.completionData?.paymentMethod || 'cash')}
                               {job.completionData?.bankAccount && ` - ${job.completionData.bankAccount}`}
                             </p>
+                            {/* TVA doar pentru plațile cash cu TVA */}
+                            {job.completionData?.paymentMethod === 'cash' && job.completionData?.tvaAmount && job.completionData.tvaAmount > 0 && (
+                              <p className="flex items-center gap-2 text-sm" style={{ color: Colors.textSecondary }}>
+                                <TrendingUp size={16} />
+                                <span className="font-medium">TVA:</span>
+                                <span className="font-semibold" style={{ color: Colors.warning }}>
+                                  {job.completionData.tvaAmount} RON
+                                </span>
+                                <span className="text-xs" style={{ color: Colors.textMuted }}>CASH</span>
+                              </p>
+                            )}
                           </div>
                         </div>
 
