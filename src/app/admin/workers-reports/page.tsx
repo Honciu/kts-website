@@ -116,11 +116,16 @@ export default function AdminWorkersReports() {
             const stats = workerStats[workerId];
             const totalAmount = job.completionData?.totalAmount || 0;
             const workerCommission = job.completionData?.workerCommission || 0;
+            const bankTransfer = job.completionData?.bankTransferAmount || 0;
+            const cardPayment = job.completionData?.cardPaymentAmount || 0;
             
             stats.totalEarnings += workerCommission;
             stats.totalCollected += totalAmount;
             stats.completedJobs += 1;
-            stats.amountToHandOver = Math.max(0, stats.totalCollected - stats.totalEarnings);
+            
+            // Suma de predat = Total încasat - Comision lucrător - Transferuri bancare - Plăți card
+            const cashAmount = totalAmount - bankTransfer - cardPayment;
+            stats.amountToHandOver = Math.max(0, cashAmount - workerCommission);
           });
           
           // Add pending approval jobs
