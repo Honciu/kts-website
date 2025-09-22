@@ -61,9 +61,8 @@ export default function AdminJobs() {
   });
 
   const availableWorkers = [
-    { id: 'cmfudasin0001v090qs1frclc', name: 'Robert' },
-    { id: 'cmfudasm70002v090fuu57u5k', name: 'Demo User' },
-    { id: 'cmfudaspq0003v09023ejiha2', name: 'Lacatus 01' }
+    { id: 'cmfudasin0001v090qs1frclc', name: 'Robert' }
+    // Optimized for single expert worker - Robert
   ];
 
   // Filter jobs by tab with proper date handling
@@ -289,6 +288,48 @@ export default function AdminJobs() {
     }
   };
 
+  const cleanAllJobs = async () => {
+    const confirmClean = confirm('⚠️ ATENȚIE: Această operațiune va șterge TOATE joburile din baza de date!\n\nAceastă acțiune nu poate fi anulată.\n\nApasă OK pentru a continua sau Cancel pentru a anula.');
+    if (!confirmClean) return;
+    
+    const confirmAgain = confirm('🚨 CONFIRMARE FINALĂ: Sigur doriți să ștergeți toate joburile?\n\nTastați "DELETE" pentru confirmare.');
+    if (!confirmAgain) return;
+    
+    const finalConfirm = prompt('Pentru siguranță, tastați "DELETE" (cu majuscule):');
+    if (finalConfirm !== 'DELETE') {
+      alert('❌ Operațiunea a fost anulată - confirmare incorectă.');
+      return;
+    }
+    
+    try {
+      console.log('🧮do Starting database cleanup...');
+      const response = await fetch('/api/admin/clean-jobs', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        alert(`✅ Curcare completă realizată cu succes!\n\n📋 Statistici:\n• Joburi șterse: ${result.data.deletedJobs}\n• Actualizări șterse: ${result.data.deletedUpdates}\n• Notificări șterse: ${result.data.deletedNotifications}\n\n🎆 Baza de date este acum curată și gata pentru teste noi!`);
+        
+        // Refresh data
+        await loadJobs();
+      } else {
+        alert(`❌ Eroare la curățare: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Error cleaning database:', error);
+      alert('❌ A apărut o eroare la curățarea bazei de date.');
+    }
+  };
+
   const viewJobPhotos = (job: Job) => {
     const photos = job.completionData?.photos || [];
     if (photos.length === 0) {
@@ -386,6 +427,19 @@ export default function AdminJobs() {
             </p>
           </div>
           <div className="flex gap-2">
+            <button
+              onClick={cleanAllJobs}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors border-2"
+              style={{
+                backgroundColor: 'transparent',
+                borderColor: Colors.error,
+                color: Colors.error,
+              }}
+              title="⚠️ PERICOL: Șterge toate joburile din baza de date"
+            >
+              <Trash2 size={16} />
+              🧹 Curăță DB
+            </button>
             <button
               onClick={() => loadJobs()}
               className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors"

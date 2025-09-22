@@ -25,7 +25,7 @@ export default function AddJob() {
   const { user } = useAuth();
   const router = useRouter();
   
-  // Form state
+  // Form state - optimized for expert operation
   const [formData, setFormData] = useState({
     clientName: '',
     clientPhone: '',
@@ -34,44 +34,26 @@ export default function AddJob() {
     serviceDescription: '',
     estimatedTime: '',
     priority: 'normal' as 'normal' | 'urgent' | 'high',
-    assignedEmployeeId: '',
+    assignedEmployeeId: 'cmfudasin0001v090qs1frclc', // Default to Robert (Expert)
     specialInstructions: '',
     isAppointment: false,
     appointmentDate: '',
     appointmentTime: ''
   });
 
-  // Available employees - REAL IDs from seed data!
+  // Expert worker configuration - Robert only for professional operation
   const [employees] = useState([
     {
       id: 'cmfudasin0001v090qs1frclc', // Robert's real ID from seed
       name: 'Robert',
       username: 'Robert',
       phone: '+40712345678',
-      salaryPercentage: 30,
+      salaryPercentage: 30, // Expert commission rate
       isOnDuty: true,
-      rating: 4.8,
-      completedJobs: 145
-    },
-    {
-      id: 'cmfudasm70002v090fuu57u5k', // Demo User's real ID
-      name: 'Demo User',
-      username: 'demo',
-      phone: '+40721000000',
-      salaryPercentage: 25,
-      isOnDuty: true,
-      rating: 4.5,
-      completedJobs: 89
-    },
-    {
-      id: 'cmfudaspq0003v09023ejiha2', // Lacatus 01's real ID
-      name: 'Lacatus 01',
-      username: 'lacatus01', 
-      phone: '+40731000000',
-      salaryPercentage: 28,
-      isOnDuty: true, // Schimb la true pentru a fi disponibil
-      rating: 4.9,
-      completedJobs: 210
+      rating: 4.9, // Expert rating
+      completedJobs: 500, // Expert experience
+      specialty: 'Expert Lăcătuș', // Professional designation
+      isExpert: true
     }
   ]);
 
