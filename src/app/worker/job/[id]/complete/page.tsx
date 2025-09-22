@@ -222,60 +222,68 @@ export default function CompleteJob() {
         job.serviceName
       );
 
-      // AUTO-COPY job details to clipboard for WhatsApp
-      const tvaLine = completionData.tvaAmount > 0 ? `\nTVA încasat: ${completionData.tvaAmount} RON (pentru companie)` : '';
-      const jobDetails = `✅ LUCRARE FINALIZATĂ #${job.id}\n\n` +
-        `📋 DETALII LUCRARE:\n` +
-        `• Client: ${job.clientName} (${job.clientPhone})\n` +
-        `• Adresa: ${job.address}\n` +
-        `• Serviciu: ${job.serviceName}\n` +
-        `• Lucrător: ${user?.name || 'N/A'}\n` +
-        `• Data finalizării: ${new Date().toLocaleString('ro-RO')}\n\n` +
-        `💰 DETALII FINANCIARE:\n` +
-        `• Suma totală: ${completionData.totalAmount} RON\n` +
-        `• Comision lucrător: ${calculateCommission().toFixed(2)} RON${tvaLine}\n` +
-        `• Plată: ${completionData.paymentMethod === 'cash' ? 'Numerar' : completionData.paymentMethod === 'card' ? 'Card' : 'Transfer bancar'}\n` +
-        `${completionData.bankAccount ? `• Cont: ${completionData.bankAccount}\n` : ''}` +
-        `${completionData.onlyTravelFee ? '• Tip: Doar deplasare\n' : ''}` +
-        `• Poze: ${completionData.jobPhotos.length}\n\n` +
-        `📝 DESCRIERE:\n${completionData.workDescription}\n` +
-        `${completionData.notes ? `\nNOTE: ${completionData.notes}` : ''}`;
+      // AUTO-COPY presentation message to clipboard for WhatsApp
+      const presentationMessage = `Salutare, numele meu este ${user?.name || 'Lucrătorul'}, astăzi eu voi fi lăcătușul dumneavoastră și voi ajunge în timpul indicat de la call-center, dacă apar modificări de timp o să vă contactez, dar prin acest mesaj automat aveți numărul meu de telefon în caz de orice modificare din partea dumneavoastră! Vă mulțumesc !`;
       
       try {
-        await navigator.clipboard.writeText(jobDetails);
-        console.log('📋 Job details copied to clipboard automatically!');
+        await navigator.clipboard.writeText(presentationMessage);
+        console.log('📋 Presentation message copied to clipboard automatically!');
       } catch (error) {
-        console.log('❌ Failed to copy job details to clipboard:', error);
+        console.log('❌ Failed to copy presentation message to clipboard:', error);
       }
 
-      // Show success message
+      // Show success message and ask for review
+      const askForReview = () => {
+        const wantsToSendReview = confirm('✅ Job finalizat cu succes!\n\n📱 Mesajul de prezentare a fost copiat în clipboard.\n\nDorești să trimiti și un mesaj pentru recenzie clientului?');
+        
+        if (wantsToSendReview) {
+          const reviewChoice = prompt(
+            '🌟 Alege contul pentru care vrei să trimiti link de recenzie:\n\n' +
+            '1 - KTS\n' +
+            '2 - Urgente Deblocari\n' +
+            '3 - Lacatusul Priceput\n\n' +
+            'Tastează numărul (1, 2 sau 3):'
+          );
+          
+          let reviewLink = '';
+          let companyName = '';
+          
+          switch(reviewChoice) {
+            case '1':
+              reviewLink = 'https://g.page/r/CYFNXdutlSnlEBE/review';
+              companyName = 'KTS';
+              break;
+            case '2':
+              reviewLink = 'https://g.page/r/CbJorf54h1xCEBM/review';
+              companyName = 'Urgente Deblocari';
+              break;
+            case '3':
+              reviewLink = 'https://g.page/r/CW28owM8g4YTEBE/review';
+              companyName = 'Lacatusul Priceput';
+              break;
+            default:
+              alert('❌ Alegere invalidă. Mesajul de recenzie nu va fi trimis.');
+              return;
+          }
+          
+          const reviewMessage = `Dacă ați fost mulțumit/a de serviciile noastre te rugăm să ne acordi 1 minut din timpul tău pentru a ne oferi o recenzie! ${reviewLink}`;
+          
+          try {
+            navigator.clipboard.writeText(reviewMessage).then(() => {
+              alert(`✅ Mesaj de recenzie pentru ${companyName} copiat în clipboard!\n\n📋 Acum poți face paste pe WhatsApp și trimite clientului.`);
+            });
+          } catch (error) {
+            alert(`Mesaj de recenzie pentru ${companyName}:\n\n${reviewMessage}\n\nCopie manual acest mesaj.`);
+          }
+        }
+      };
+      
       if (completedJob.status === 'pending_approval') {
-        alert(`✅ Lucrare înregistrată cu succes!
-        
-📋 Detalii:
-• Suma totală: ${completionData.totalAmount} RON
-• Comisionul tău: ${calculateCommission().toFixed(2)} RON
-${completionData.tvaAmount > 0 ? `• TVA pentru companie: ${completionData.tvaAmount} RON
-` : ''}• Metoda de plată: Transfer bancar - ${completionData.bankAccount}
-• Poze încărcate: ${completionData.jobPhotos.length}
-
-⏳ Lucrarea va apărea în câștiguri după aprobarea administratorului pentru transferurile bancare.
-
-📋 Detaliile complete au fost copiate automat în clipboard pentru WhatsApp!`);
+        alert(`✅ Lucrare înregistrată cu succes!\n\n📋 Detalii:\n• Suma totală: ${completionData.totalAmount} RON\n• Comisionul tău: ${calculateCommission().toFixed(2)} RON\n${completionData.tvaAmount > 0 ? `• TVA pentru companie: ${completionData.tvaAmount} RON\n` : ''}• Transfer bancar - ${completionData.bankAccount}\n• Poze încărcate: ${completionData.jobPhotos.length}\n\n⏳ Va apărea în câștiguri după aprobare.\n\n📱 Mesajul de prezentare a fost copiat automat pentru client!`);
+        askForReview();
       } else {
-        alert(`✅ Lucrare finalizată cu succes!
-        
-📋 Detalii:
-• Suma totală: ${completionData.totalAmount} RON  
-• Comisionul tău: ${calculateCommission().toFixed(2)} RON
-${completionData.tvaAmount > 0 ? `• TVA pentru companie: ${completionData.tvaAmount} RON
-` : ''}• Metoda de plată: ${completionData.paymentMethod === 'cash' ? 'Numerar' : 'Card'}
-• Poze încărcate: ${completionData.jobPhotos.length}
-
-💰 Câștigul a fost adăugat automat în contul tău!
-🔄 Sincronizare în timp real activă - jobul va apărea în toate paginile în 2-3 secunde!
-
-📋 Detaliile complete au fost copiate automat în clipboard pentru WhatsApp!`);
+        alert(`✅ Lucrare finalizată cu succes!\n\n📋 Detalii:\n• Suma totală: ${completionData.totalAmount} RON\n• Comisionul tău: ${calculateCommission().toFixed(2)} RON\n${completionData.tvaAmount > 0 ? `• TVA pentru companie: ${completionData.tvaAmount} RON\n` : ''}• Plată: ${completionData.paymentMethod === 'cash' ? 'Numerar' : 'Card'}\n• Poze încărcate: ${completionData.jobPhotos.length}\n\n💰 Câștigul a fost adăugat în cont!\n📱 Mesajul de prezentare a fost copiat automat pentru client!`);
+        askForReview();
       }
 
       router.push('/worker/completed-jobs');

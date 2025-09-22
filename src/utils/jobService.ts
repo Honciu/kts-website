@@ -75,13 +75,90 @@ class JobService {
   private isConnected = false;
   private readonly STORAGE_KEY = 'kts_jobs_data';
   private readonly NOTIFICATIONS_KEY = 'kts_notifications_data';
+  private readonly JOB_COUNTER_KEY = 'kts_job_counter';
+  private jobCounter: number = 1;
 
   constructor() {
+    this.loadJobCounter();
     this.loadFromStorage();
     this.loadNotificationsFromStorage();
     this.startRealTimeSync();
     this.initializeRealtimeSync();
     this.initializeCrossBrowserSync();
+  }
+
+  /**
+   * Încarcă contorul de job-uri din localStorage
+   */
+  private loadJobCounter(): void {
+    if (typeof window === 'undefined') {
+      this.jobCounter = 1;
+      return;
+    }
+    
+    try {
+      const stored = localStorage.getItem(this.JOB_COUNTER_KEY);
+      if (stored) {
+        this.jobCounter = parseInt(stored, 10) || 1;
+        console.log('🔢 JobService: Loaded job counter:', this.jobCounter);
+      } else {
+        this.jobCounter = 1;
+        this.saveJobCounter();
+        console.log('🔢 JobService: Initialized job counter at 1');
+      }
+    } catch (error) {
+      console.error('❌ JobService: Error loading job counter:', error);
+      this.jobCounter = 1;
+    }
+  }
+
+  /**
+   * Salvează contorul de job-uri în localStorage
+   */
+  private saveJobCounter(): void {
+    if (typeof window === 'undefined') return;
+    
+    try {
+      localStorage.setItem(this.JOB_COUNTER_KEY, this.jobCounter.toString());
+      console.log('💾 JobService: Job counter saved:', this.jobCounter);
+    } catch (error) {
+      console.error('❌ JobService: Error saving job counter:', error);
+    }
+  }
+
+  /**
+   * Generează următorul ID secvențial
+   */
+  private getNextJobId(): string {
+    const nextId = this.jobCounter.toString();
+    this.jobCounter++;
+    this.saveJobCounter();
+    console.log('🆔 JobService: Generated job ID:', nextId);
+    return nextId;
+  }
+
+  /**
+   * Actualizează contorul bazat pe joburile existente
+   */
+  private updateJobCounterFromExistingJobs(): void {
+    if (this.jobs.size === 0) {
+      this.jobCounter = 1;
+      this.saveJobCounter();
+      return;
+    }
+
+    // Găsește cel mai mare ID numeric
+    let maxId = 0;
+    for (const job of this.jobs.values()) {
+      const numericId = parseInt(job.id, 10);
+      if (!isNaN(numericId) && numericId > maxId) {
+        maxId = numericId;
+      }
+    }
+
+    this.jobCounter = maxId + 1;
+    this.saveJobCounter();
+    console.log('🔢 JobService: Updated job counter to', this.jobCounter, 'based on existing jobs');
   }
 
   /**
@@ -99,6 +176,10 @@ class JobService {
       if (stored) {
         const data = JSON.parse(stored);
         this.jobs = new Map(data.jobs || []);
+        
+        // Actualizează contorul bazat pe cel mai mare ID existent
+        this.updateJobCounterFromExistingJobs();
+        
         console.log('🔄 JobService: Loaded', this.jobs.size, 'jobs from localStorage');
         return;
       }
@@ -114,9 +195,14 @@ class JobService {
    * Inițializează cu date mock pentru demonstrație
    */
   private initializeMockData(): void {
+    // Actualizează contorul să reflecte joburile mock existente
+    const highestMockId = 4; // Avem 4 joburi mock: 1, 2, 3, 4
+    this.jobCounter = highestMockId + 1;
+    this.saveJobCounter();
+    
     const mockJobs: Job[] = [
       {
-        id: '1001',
+        id: '1',
         clientName: 'Ion Popescu',
         clientPhone: '+40721123456',
         address: 'Str. Aviatorilor nr. 15, Sector 1',
@@ -130,7 +216,7 @@ class JobService {
         createdAt: new Date().toISOString(),
       },
       {
-        id: '1002',
+        id: '2',
         clientName: 'Maria Ionescu',
         clientPhone: '+40731112233',
         address: 'Bd. Unirii nr. 45',
@@ -153,7 +239,7 @@ class JobService {
         }
       },
       {
-        id: '1003',
+        id: '3',
         clientName: 'Andrei Popescu',
         clientPhone: '+40744555666',
         address: 'Str. Florilor nr. 12',
@@ -174,7 +260,7 @@ class JobService {
         }
       },
       {
-        id: '1004',
+        id: '4',
         clientName: 'Elena Vasile',
         clientPhone: '+40755777888',
         address: 'Calea Victoriei nr. 85',
@@ -1066,7 +1152,7 @@ class JobService {
    * Adaugă un job nou - VERSIUNE CU CROSS-BROWSER SYNC
    */
   addJob(newJob: Omit<Job, 'id' | 'createdAt'>): Job {
-    const jobId = `${Date.now()}`;
+    const jobId = this.getNextJobId();
     const timestamp = new Date().toISOString();
     
     const job: Job = {
