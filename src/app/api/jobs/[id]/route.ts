@@ -3,11 +3,12 @@ import { prisma } from '@/lib/prisma'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const resolvedParams = await params
   try {
     const job = await prisma.job.findUnique({
-      where: { id: params.id },
+      where: { id: resolvedParams.id },
       include: {
         assignedWorker: {
           select: {
@@ -75,8 +76,9 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const resolvedParams = await params
   try {
     const body = await request.json()
     const {
@@ -98,7 +100,7 @@ export async function PUT(
 
     // Verifică că job-ul există
     const existingJob = await prisma.job.findUnique({
-      where: { id: params.id }
+      where: { id: resolvedParams.id }
     })
 
     if (!existingJob) {
@@ -110,7 +112,7 @@ export async function PUT(
 
     // Actualizează job-ul
     const updatedJob = await prisma.job.update({
-      where: { id: params.id },
+      where: { id: resolvedParams.id },
       data: {
         ...(clientName && { clientName }),
         ...(clientPhone && { clientPhone }),
@@ -148,7 +150,7 @@ export async function PUT(
     // Creează job update pentru tracking
     await prisma.jobUpdate.create({
       data: {
-        jobId: params.id,
+        jobId: resolvedParams.id,
         status: updatedJob.status,
         workerId: assignedEmployeeId || updatedJob.assignedEmployeeId,
         workerName: assignedEmployeeName || updatedJob.assignedEmployeeName,
@@ -180,7 +182,7 @@ export async function PUT(
       completionData: updatedJob.completionData as any
     }
 
-    console.log(`✅ Job ${params.id} updated successfully`)
+    console.log(`✅ Job ${resolvedParams.id} updated successfully`)
 
     return NextResponse.json({
       success: true,
@@ -208,12 +210,13 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const resolvedParams = await params
   try {
     // Verifică că job-ul există
     const existingJob = await prisma.job.findUnique({
-      where: { id: params.id }
+      where: { id: resolvedParams.id }
     })
 
     if (!existingJob) {
@@ -223,25 +226,25 @@ export async function DELETE(
       )
     }
 
-    // Șterge job updates și notifications related
+    // Şterge job updates şi notifications related
     await prisma.jobUpdate.deleteMany({
-      where: { jobId: params.id }
+      where: { jobId: resolvedParams.id }
     })
 
     await prisma.notification.deleteMany({
-      where: { jobId: params.id }
+      where: { jobId: resolvedParams.id }
     })
 
-    // Șterge job-ul
+    // Şterge job-ul
     await prisma.job.delete({
-      where: { id: params.id }
+      where: { id: resolvedParams.id }
     })
 
-    console.log(`✅ Job ${params.id} deleted successfully`)
+    console.log(`✅ Job ${resolvedParams.id} deleted successfully`)
 
     return NextResponse.json({
       success: true,
-      data: { id: params.id },
+      data: { id: resolvedParams.id },
       timestamp: new Date().toISOString(),
       version: Date.now()
     })
