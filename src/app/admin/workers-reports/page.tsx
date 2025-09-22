@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Colors } from '@/constants/colors';
 import AdminLayout from '@/components/AdminLayout';
-import { jobService } from '@/utils/jobService';
+import { realApiService } from '@/utils/realApiService';
 import { 
   User,
   DollarSign,
@@ -48,30 +48,95 @@ export default function AdminWorkersReports() {
       return;
     }
     
-    // Load workers reports
-    const loadWorkersReports = () => {
-      const reports = jobService.getAllWorkersWeeklyReport(selectedWeek);
-      setWorkersReports(reports);
+    // Load workers reports from REAL API
+    const loadWorkersReports = async () => {
+      try {
+        console.log('📈 Workers Reports: Loading from REAL API...');
+        const response = await realApiService.getJobs();
+        
+        if (response.success) {
+          const allJobs = response.data;
+          const completedJobs = allJobs.filter(job => job.status === 'completed');
+          
+          // Calculate week boundaries
+          const weekStart = getWeekStart(selectedWeek);
+          const weekEnd = getWeekEnd(selectedWeek);
+          
+          // Filter jobs by completion date for selected week
+          const weekJobs = completedJobs.filter(job => {
+            const completionDate = new Date(job.completedAt || job.createdAt);
+            return completionDate >= weekStart && completionDate <= weekEnd;
+          });
+          
+          // Group by worker and calculate stats
+          const workerStats: Record<string, WorkerReport> = {};
+          
+          weekJobs.forEach(job => {
+            const workerId = job.assignedEmployeeId;
+            const workerName = job.assignedEmployeeName;
+            
+            if (!workerStats[workerId]) {
+              workerStats[workerId] = {
+                workerId,
+                workerName,
+                totalEarnings: 0,
+                totalCollected: 0,
+                amountToHandOver: 0,
+                completedJobs: 0,
+                pendingApproval: 0
+              };
+            }
+            
+            const stats = workerStats[workerId];
+            const totalAmount = job.completionData?.totalAmount || 0;
+            const workerCommission = job.completionData?.workerCommission || 0;
+            
+            stats.totalEarnings += workerCommission;
+            stats.totalCollected += totalAmount;
+            stats.completedJobs += 1;
+            stats.amountToHandOver = Math.max(0, stats.totalCollected - stats.totalEarnings);
+          });
+          
+          // Add pending approval jobs
+          const pendingJobs = allJobs.filter(job => 
+            job.status === 'pending_approval' && 
+            new Date(job.completedAt || job.createdAt) >= weekStart && 
+            new Date(job.completedAt || job.createdAt) <= weekEnd
+          );
+          
+          pendingJobs.forEach(job => {
+            const workerId = job.assignedEmployeeId;
+            if (workerStats[workerId]) {
+              workerStats[workerId].pendingApproval += 1;
+            }
+          });
+          
+          setWorkersReports(Object.values(workerStats));
+          console.log('✅ Workers Reports: Data loaded successfully!');
+        } else {
+          console.error('❌ Workers Reports: API error:', response.error);
+          setWorkersReports([]);
+        }
+      } catch (error) {
+        console.error('❌ Workers Reports: Error loading data:', error);
+        setWorkersReports([]);
+      }
     };
     
     loadWorkersReports();
     
-    // Add listener for real-time updates
-    jobService.addListener('admin-workers-reports', {
-      onJobUpdate: (job, update) => {
-        loadWorkersReports();
-      },
-      onJobComplete: (job) => {
-        loadWorkersReports();
-      },
-      onJobStatusChange: (jobId, oldStatus, newStatus) => {
+    // Add REAL API listener for real-time updates
+    realApiService.addChangeListener('admin-workers-reports-real', (hasChanges) => {
+      if (hasChanges) {
+        console.log('📈 Workers Reports: REAL API changes detected - syncing!');
         loadWorkersReports();
       }
     });
     
     // Cleanup listener
     return () => {
-      jobService.removeListener('admin-workers-reports');
+      console.log('🧹 Workers Reports: Cleaning up REAL API listeners');
+      realApiService.removeChangeListener('admin-workers-reports-real');
     };
   }, [user, router, selectedWeek]);
 
