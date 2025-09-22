@@ -148,6 +148,18 @@ export default function CompleteJob() {
         throw new Error('Could not fetch job data');
       }
 
+      // Convert photos to base64 for storage
+      const photoPromises = completionData.jobPhotos.map(file => {
+        return new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      });
+      
+      const photoBase64Array = await Promise.all(photoPromises);
+      
       // Prepare completion data
       const completionDataForApi = {
         paymentMethod: completionData.paymentMethod,
@@ -156,7 +168,7 @@ export default function CompleteJob() {
         bankAccount: completionData.bankAccount,
         onlyTravelFee: completionData.onlyTravelFee,
         workDescription: completionData.workDescription,
-        photos: completionData.jobPhotos.map((_, index) => `/completed-job-${job.id}-${index + 1}.jpg`),
+        photos: photoBase64Array, // Save as base64 data URLs
         notes: completionData.notes
       };
 
@@ -169,14 +181,27 @@ export default function CompleteJob() {
         completionData: completionDataForApi
       };
       
+      console.log('🔄 Sending job completion to API:', {
+        jobId: job.id,
+        status: newStatus,
+        completionData: completionDataForApi,
+        photosCount: photoBase64Array.length
+      });
+      
       const response = await realApiService.updateJob(job.id, updatedJob);
       
       if (!response.success) {
+        console.error('❌ Job completion failed:', response.error);
         throw new Error(response.error || 'Failed to complete job via API');
       }
       
       const completedJob = response.data;
-      console.log('✅ Job completed via REAL API:', completedJob);
+      console.log('✅ Job completed successfully via REAL API!');
+      console.log('  - Job ID:', completedJob.id);
+      console.log('  - Status:', completedJob.status);
+      console.log('  - Completed at:', completedJob.completedAt);
+      console.log('  - Worker commission:', completedJob.completionData?.workerCommission);
+      console.log('  - Photos saved:', completedJob.completionData?.photos?.length || 0);
       
       // Send completion notification
       await notificationService.sendJobCompletionNotification(
@@ -206,7 +231,8 @@ export default function CompleteJob() {
 • Metoda de plată: ${completionData.paymentMethod === 'cash' ? 'Numerar' : 'Card'}
 • Poze încărcate: ${completionData.jobPhotos.length}
 
-💰 Câștigul a fost adăugat automat în contul tău!`);
+💰 Câștigul a fost adăugat automat în contul tău!
+🔄 Sincronizare în timp real activă - jobul va apărea în toate paginile în 2-3 secunde!`);
       }
 
       router.push('/worker/completed-jobs');

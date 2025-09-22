@@ -67,12 +67,16 @@ export default function WorkerEarnings() {
           const weekStart = getWeekStart(selectedWeek);
           const weekEnd = getWeekEnd(selectedWeek);
           
-          const weekJobs = workerJobs.filter(job => {
-            const jobDate = new Date(job.createdAt);
-            return jobDate >= weekStart && jobDate <= weekEnd;
+          // Filter jobs by completion date (not creation date) for current week
+          const completedJobs = workerJobs.filter(job => {
+            if (!['completed', 'pending_approval'].includes(job.status)) return false;
+            
+            // Use completion date if available, fallback to creation date
+            const completionDate = new Date(job.completedAt || job.createdAt);
+            return completionDate >= weekStart && completionDate <= weekEnd;
           });
           
-          const completedJobs = weekJobs.filter(job => ['completed', 'pending_approval'].includes(job.status));
+          const weekJobs = completedJobs; // Only show completed jobs for the week
           const pendingApproval = completedJobs.filter(job => job.status === 'pending_approval');
           const confirmedJobs = completedJobs.filter(job => job.status === 'completed');
           
