@@ -62,10 +62,21 @@ export default function AdminWorkersReports() {
           const weekStart = getWeekStart(selectedWeek);
           const weekEnd = getWeekEnd(selectedWeek);
           
+          console.log('📋 Workers Reports REAL DATA:');
+          console.log('  • Total jobs from API:', allJobs.length);
+          console.log('  • Completed jobs:', completedJobs.length);
+          console.log('  • Week range:', weekStart.toISOString(), 'to', weekEnd.toISOString());
+          console.log('  • Selected week:', selectedWeek.toISOString());
+          
           // Filter jobs by completion date for selected week
           const weekJobs = completedJobs.filter(job => {
             const completionDate = new Date(job.completedAt || job.createdAt);
             return completionDate >= weekStart && completionDate <= weekEnd;
+          });
+          
+          console.log('  • Week jobs found:', weekJobs.length);
+          weekJobs.forEach(job => {
+            console.log(`    - Job #${job.id}: ${job.serviceName} - ${job.assignedEmployeeName} - ${new Date(job.completedAt || job.createdAt).toISOString()}`);
           });
           
           // Group by worker and calculate stats

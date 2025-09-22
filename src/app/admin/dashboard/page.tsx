@@ -56,10 +56,13 @@ export default function AdminDashboard() {
       }
       
       console.log('🏠 Dashboard: Loading REAL data ONLY from API...');
-      const response = await realApiService.getJobs();
+      const [jobsResponse, usersResponse] = await Promise.all([
+        realApiService.getJobs(),
+        fetch('/api/users').then(res => res.json())
+      ]);
       
-      if (response.success) {
-        const allJobs = response.data;
+      if (jobsResponse.success) {
+        const allJobs = jobsResponse.data;
         
         console.log('📋 Dashboard REAL DATA ANALYSIS:');
         console.log('  • Total jobs from API:', allJobs.length);
@@ -84,13 +87,28 @@ export default function AdminDashboard() {
           !['completed', 'cancelled'].includes(job.status)
         ).length;
         
-        // Get unique active employees (workers with jobs)
-        const activeEmployeeIds = new Set(
-          allJobs
-            .filter(job => !['completed', 'cancelled'].includes(job.status))
-            .map(job => job.assignedEmployeeId)
-        );
-        const activeEmployees = activeEmployeeIds.size;
+        // Get TOTAL active employees from users API (not just those with jobs)
+        let activeEmployees = 0;
+        if (usersResponse.success) {
+          const allUsers = usersResponse.data;
+          const workers = allUsers.filter(user => user.type === 'WORKER' && user.isActive);
+          activeEmployees = workers.length;
+          
+          console.log('👥 Users REAL DATA:');
+          console.log('  • Total users from API:', allUsers.length);
+          console.log('  • Active workers:', activeEmployees);
+          workers.forEach(worker => {
+            console.log(`    - ${worker.name} (${worker.email})`);
+          });
+        } else {
+          console.error('❌ Users API failed, fallback to job-based calculation');
+          const activeEmployeeIds = new Set(
+            allJobs
+              .filter(job => !['completed', 'cancelled'].includes(job.status))
+              .map(job => job.assignedEmployeeId)
+          );
+          activeEmployees = activeEmployeeIds.size;
+        }
         
         // Calculate weekly revenue and profit
         const oneWeekAgo = new Date();

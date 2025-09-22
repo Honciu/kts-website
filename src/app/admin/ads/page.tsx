@@ -111,11 +111,12 @@ export default function AdminAds() {
       const existingDay = existingWeekData?.dailySpends?.find((d: DailyAdSpend) => d.date === dateKey);
       const baseDaily = workerName === 'Robert' ? 70 : workerName === 'Arslan' ? 45 : 30;
       
+      // Start with 0 for new weeks - no mock data!
       const dayData = existingDay || {
         date: dateKey,
-        facebook: Math.round((baseDaily * 0.4) + (Math.random() * 20)),
-        google: Math.round((baseDaily * 0.4) + (Math.random() * 20)),
-        tiktok: Math.round((baseDaily * 0.2) + (Math.random() * 10)),
+        facebook: 0,
+        google: 0,
+        tiktok: 0,
         total: 0
       };
       

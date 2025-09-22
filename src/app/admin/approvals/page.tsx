@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Colors } from '@/constants/colors';
 import AdminLayout from '@/components/AdminLayout';
+import { realApiService } from '@/utils/realApiService';
 import { 
   CheckCircle,
   X,
@@ -40,51 +41,84 @@ interface PendingTransfer {
 export default function AdminApprovals() {
   const { user } = useAuth();
   const router = useRouter();
-
-  // Mock data - transferuri în așteptarea aprobării
-  const [pendingTransfers, setPendingTransfers] = useState<PendingTransfer[]>([
-    {
-      id: '1',
-      jobId: '1001',
-      workerName: 'Robert',
-      clientName: 'Ion Popescu',
-      clientPhone: '+40721123456',
-      address: 'Str. Aviatorilor nr. 15',
-      serviceName: 'Deblocare ușă',
-      totalAmount: 150,
-      workerCommission: 45,
-      bankAccount: 'KTS',
-      workDescription: 'Am deblocat ușa cu unelte speciale, am verificat mecanismul de închidere și am aplicat lubrifiant pentru a preveni blocarea în viitor.',
-      photos: ['/mock-photo-1.jpg', '/mock-photo-2.jpg'],
-      completedAt: new Date().toISOString(),
-      onlyTravelFee: false,
-      notes: 'Client foarte mulțumit, a recomandat serviciile noastre.'
-    },
-    {
-      id: '2',
-      jobId: '1002',
-      workerName: 'Demo User',
-      clientName: 'Maria Ionescu',
-      clientPhone: '+40731112233',
-      address: 'Bd. Unirii nr. 45',
-      serviceName: 'Schimbare yală',
-      totalAmount: 80,
-      workerCommission: 80,
-      bankAccount: 'Urgente_Deblocari',
-      workDescription: 'Client nu era acasă la adresa indicată. Am așteptat 30 de minute și am încercat să contactez telefonic.',
-      photos: ['/mock-photo-3.jpg'],
-      completedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-      onlyTravelFee: true
-    }
-  ]);
-
+  
+  const [pendingTransfers, setPendingTransfers] = useState<PendingTransfer[]>([]);
   const [selectedTransfer, setSelectedTransfer] = useState<PendingTransfer | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [loading, setLoading] = useState(true);
+  
+  const loadPendingTransfers = async () => {
+    setLoading(true);
+    try {
+      console.log('🏦 Approvals: Loading pending transfers from REAL API...');
+      const response = await realApiService.getJobs();
+      
+      if (response.success) {
+        // Get only jobs with pending_approval status and bank_transfer payment
+        const allJobs = response.data;
+        const pendingBankTransfers = allJobs.filter(job => 
+          job.status === 'pending_approval' && 
+          job.completionData?.paymentMethod === 'bank_transfer'
+        );
+        
+        console.log('📋 Approvals REAL DATA:');
+        console.log('  • Total jobs from API:', allJobs.length);
+        console.log('  • Pending approval jobs:', allJobs.filter(j => j.status === 'pending_approval').length);
+        console.log('  • Bank transfer jobs:', pendingBankTransfers.length);
+        
+        // Convert to PendingTransfer format
+        const transfers: PendingTransfer[] = pendingBankTransfers.map(job => ({
+          id: job.id,
+          jobId: job.id,
+          workerName: job.assignedEmployeeName,
+          clientName: job.clientName,
+          clientPhone: job.clientPhone,
+          address: job.address,
+          serviceName: job.serviceName,
+          totalAmount: job.completionData?.totalAmount || 0,
+          workerCommission: job.completionData?.workerCommission || 0,
+          bankAccount: (job.completionData?.bankAccount || 'KTS') as 'KTS' | 'Urgente_Deblocari' | 'Lacatusul_Priceput',
+          workDescription: job.completionData?.workDescription || '',
+          photos: job.completionData?.photos || [],
+          completedAt: job.completedAt || job.createdAt,
+          onlyTravelFee: job.completionData?.onlyTravelFee || false,
+          notes: job.completionData?.notes
+        }));
+        
+        setPendingTransfers(transfers);
+        console.log('✅ Approvals: Loaded', transfers.length, 'real pending transfers from API');
+      } else {
+        console.error('❌ Approvals: API error:', response.error);
+        setPendingTransfers([]);
+      }
+    } catch (error) {
+      console.error('❌ Approvals: Error loading transfers:', error);
+      setPendingTransfers([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!user || user.type !== 'admin') {
       router.replace('/');
+      return;
     }
+    
+    loadPendingTransfers();
+    
+    // Add REAL API listener for real-time updates
+    realApiService.addChangeListener('admin-approvals-real', (hasChanges) => {
+      if (hasChanges) {
+        console.log('🏦 Approvals: REAL API changes detected - syncing!');
+        loadPendingTransfers();
+      }
+    });
+    
+    return () => {
+      console.log('🧹 Approvals: Cleaning up listeners');
+      realApiService.removeChangeListener('admin-approvals-real');
+    };
   }, [user, router]);
 
   if (!user || user.type !== 'admin') {
