@@ -191,7 +191,6 @@ export default function WorkerEarnings() {
         setIsRefreshing(false);
         setLastRefreshTime(new Date());
       }
-    };
   }, [user, selectedWeek, showAllTime]);
   
   useEffect(() => {
