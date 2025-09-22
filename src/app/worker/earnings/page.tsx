@@ -190,13 +190,28 @@ export default function WorkerEarnings() {
             return total + (job.completionData?.totalAmount || 0);
           }, 0);
           
+          // Calculează doar plățile CASH (nu card sau transfer bancar) pentru suma de predat
+          const cashCollected = confirmedJobs.reduce((total, job) => {
+            const paymentMethod = job.completionData?.paymentMethod;
+            if (paymentMethod === 'cash') {
+              return total + (job.completionData?.totalAmount || 0);
+            }
+            return total; // Nu adaugă sumele de pe card sau transfer bancar
+          }, 0);
+          
+          console.log('💰 EARNINGS PAYMENT BREAKDOWN:');
+          console.log('  - Total collected from all jobs:', totalCollected, 'RON');
+          console.log('  - Cash collected (physical money):', cashCollected, 'RON');
+          console.log('  - Worker commission:', totalEarnings, 'RON');
+          console.log('  - Amount to hand over (Cash - Commission):', Math.max(0, cashCollected - totalEarnings), 'RON');
+          
           const travelOnlyJobs = confirmedJobs.filter(job => job.completionData?.onlyTravelFee).length;
           
           setWeeklyReport({
             weekJobs,
             totalEarnings,
             totalCollected,
-            amountToHandOver: Math.max(0, totalCollected - totalEarnings),
+            amountToHandOver: Math.max(0, cashCollected - totalEarnings), // Folosește doar CASH-ul
             completedJobs: confirmedJobs.length,
             pendingApproval: pendingApproval.length,
             travelOnlyJobs
@@ -570,13 +585,21 @@ Generat: ${new Date().toLocaleString('ro-RO')}`;
                   <span>Suma totală încasată:</span>
                   <span className="font-medium">{weeklyReport.totalCollected} RON</span>
                 </div>
+                <div className="flex justify-between text-xs" style={{ color: Colors.textMuted }}>
+                  <span>• Din care CASH:</span>
+                  <span>({weeklyReport.weekJobs.reduce((total, job) => job.completionData?.paymentMethod === 'cash' ? total + (job.completionData?.totalAmount || 0) : total, 0)} RON)</span>
+                </div>
+                <div className="flex justify-between text-xs" style={{ color: Colors.textMuted }}>
+                  <span>• Card/Transfer:</span>
+                  <span>({weeklyReport.totalCollected - weeklyReport.weekJobs.reduce((total, job) => job.completionData?.paymentMethod === 'cash' ? total + (job.completionData?.totalAmount || 0) : total, 0)} RON)</span>
+                </div>
                 <div className="flex justify-between">
                   <span>Comisionul tău:</span>
                   <span className="font-medium text-green-600">-{weeklyReport.totalEarnings} RON</span>
                 </div>
                 <div className="border-t pt-2" style={{ borderColor: Colors.border }}>
                   <div className="flex justify-between font-semibold">
-                    <span>De predat companiei:</span>
+                    <span>De predat companiei (doar CASH):</span>
                     <span style={{ color: Colors.error }}>{weeklyReport.amountToHandOver} RON</span>
                   </div>
                 </div>
@@ -612,7 +635,8 @@ Generat: ${new Date().toLocaleString('ro-RO')}`;
 
           <div className="mt-6 p-4 rounded-lg" style={{ backgroundColor: Colors.surfaceLight }}>
             <p className="text-sm text-center" style={{ color: Colors.textMuted }}>
-              💡 <strong>Notă:</strong> Suma de predat reprezintă diferența dintre suma totală încasată și comisionul tău. 
+              💡 <strong>Notă:</strong> Suma de predat se calculează doar din platăile CASH (numerar). 
+              Platăile pe card sau transfer bancar NU se predau pentru că nu sunt fizic la tine. 
               Joburile în așteptarea aprobării nu sunt incluse în câștigurile confirmate.
             </p>
           </div>

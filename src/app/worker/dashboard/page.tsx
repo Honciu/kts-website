@@ -127,7 +127,16 @@ export default function WorkerDashboard() {
           return total + (job.completionData?.totalAmount || 0);
         }, 0);
         
-        const amountToHandOver = Math.max(0, totalCollected - weeklyEarnings);
+        // Calculează doar plățile CASH (nu card sau transfer) pentru suma de predat
+        const cashCollected = completedJobs.reduce((total, job) => {
+          const paymentMethod = job.completionData?.paymentMethod;
+          if (paymentMethod === 'cash') {
+            return total + (job.completionData?.totalAmount || 0);
+          }
+          return total; // Nu adaugă sumele de pe card sau transfer bancar
+        }, 0);
+        
+        const amountToHandOver = Math.max(0, cashCollected - weeklyEarnings);
         
         // Calculează TVA (19% din total încasat)
         const tvaAmount = Math.round(totalCollected * 0.19);
@@ -153,7 +162,8 @@ export default function WorkerDashboard() {
         console.log('📊 Worker Dashboard: Financial Summary:');
         console.log('  - Total earnings (commission):', weeklyEarnings, 'RON');
         console.log('  - Total collected from clients:', totalCollected, 'RON');
-        console.log('  - Amount to hand over:', amountToHandOver, 'RON');
+        console.log('  - Cash collected (physical money):', cashCollected, 'RON');
+        console.log('  - Amount to hand over (Cash - Commission):', amountToHandOver, 'RON');
         console.log('  - TVA amount (19%):', tvaAmount, 'RON');
         console.log('  - Completed jobs:', completedJobs.length);
         
