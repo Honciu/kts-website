@@ -27,7 +27,7 @@ export async function GET(
 
     // For now, return empty array since we don't have Debt model in schema
     // This should be updated when Debt model is added to Prisma schema
-    const debts = [];
+    const debts: any[] = [];
 
     /* 
     When Debt model is added to schema, uncomment this:
