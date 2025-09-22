@@ -115,8 +115,13 @@ export default function WorkerEarnings() {
           const weekEnd = getWeekEnd(selectedWeek);
           
           console.log('📅 EARNINGS DATE FILTERING:');
-          console.log('  - Selected week start:', weekStart.toLocaleDateString('ro-RO'));
-          console.log('  - Selected week end:', weekEnd.toLocaleDateString('ro-RO'));
+          console.log('  - Current date:', new Date().toISOString());
+          console.log('  - Selected week (input):', selectedWeek.toISOString());
+          console.log('  - Selected week start:', weekStart.toISOString());
+          console.log('  - Selected week end:', weekEnd.toISOString());
+          console.log('  - Selected week start (RO format):', weekStart.toLocaleDateString('ro-RO'));
+          console.log('  - Selected week end (RO format):', weekEnd.toLocaleDateString('ro-RO'));
+          console.log('  - Show all time mode:', showAllTime);
           
           // Get ALL completed jobs first
           const allCompletedJobs = workerJobs.filter(job => ['completed', 'pending_approval'].includes(job.status));
@@ -134,26 +139,42 @@ export default function WorkerEarnings() {
             if (!job.completedAt) {
               console.log(`⚠️ Job ${job.id} has no completedAt date, using createdAt`);
               const creationDate = new Date(job.createdAt);
-              return creationDate >= weekStart && creationDate <= weekEnd;
+              const inRange = creationDate >= weekStart && creationDate <= weekEnd;
+              console.log(`📅 Job ${job.id} (createdAt): ${job.createdAt} -> ${inRange ? 'IN RANGE' : 'OUT OF RANGE'}`);
+              console.log(`    - Creation date: ${creationDate.toISOString()}`);
+              console.log(`    - Week start: ${weekStart.toISOString()}`);
+              console.log(`    - Week end: ${weekEnd.toISOString()}`);
+              return inRange;
             }
             
             const completionDate = new Date(job.completedAt);
             const inRange = completionDate >= weekStart && completionDate <= weekEnd;
             
             console.log(`📅 Job ${job.id}: ${job.completedAt} -> ${inRange ? 'IN RANGE' : 'OUT OF RANGE'}`);
+            console.log(`    - Completion date: ${completionDate.toISOString()}`);
+            console.log(`    - Week start: ${weekStart.toISOString()}`);
+            console.log(`    - Week end: ${weekEnd.toISOString()}`);
+            console.log(`    - Date comparison: ${completionDate.getTime()} >= ${weekStart.getTime()} && ${completionDate.getTime()} <= ${weekEnd.getTime()}`);
             return inRange;
           });
           
           console.log(`🎯 FINAL FILTERED JOBS (${showAllTime ? 'ALL TIME' : 'CURRENT WEEK'}):`, completedJobs.length);
           console.log('  - Jobs to display:', completedJobs.map(j => `#${j.id} - ${j.serviceName} (${j.completionData?.workerCommission || 0} RON)`));
           
+          console.log('📊 FILTERING SUMMARY:');
+          console.log(`  - All completed jobs: ${allCompletedJobs.length}`);
+          console.log(`  - Filtered for selected period: ${completedJobs.length}`);
+          console.log(`  - Show all time: ${showAllTime}`);
+          
           if (completedJobs.length === 0) {
             console.log('⚠️ WORKER EARNINGS: NO JOBS TO DISPLAY!');
             console.log('  - Total worker jobs found:', workerJobs.length);
+            console.log('  - All completed jobs found:', allCompletedJobs.length);
             console.log('  - Show all time mode:', showAllTime);
             console.log('  - Selected week:', `${weekStart.toLocaleDateString('ro-RO')} - ${weekEnd.toLocaleDateString('ro-RO')}`);
-            if (!showAllTime) {
-              console.log('  - Try toggling "Toate Timpurile" to see all completed jobs');
+            if (!showAllTime && allCompletedJobs.length > 0) {
+              console.log('❗ SUGGESTION: Try toggling "Toate Timpurile" to see all completed jobs');
+              console.log('  - Or navigate to different weeks to find jobs completed in other periods');
             }
           }
           
@@ -246,12 +267,18 @@ export default function WorkerEarnings() {
     const d = new Date(date);
     const day = d.getDay();
     const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-    return new Date(d.setDate(diff));
+    const start = new Date(d.setDate(diff));
+    // Set to beginning of day (00:00:00.000)
+    start.setHours(0, 0, 0, 0);
+    return start;
   };
 
   const getWeekEnd = (date: Date) => {
     const start = getWeekStart(date);
-    return new Date(start.getTime() + 6 * 24 * 60 * 60 * 1000);
+    const end = new Date(start.getTime() + 6 * 24 * 60 * 60 * 1000);
+    // Set to end of day (23:59:59.999) to include the entire last day
+    end.setHours(23, 59, 59, 999);
+    return end;
   };
 
   const formatWeekRange = (date: Date) => {
