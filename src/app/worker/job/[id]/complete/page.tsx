@@ -26,6 +26,7 @@ interface CompletionData {
   totalAmount: number;
   materialsCost: number;
   laborCost: number;
+  tvaAmount: number; // Suma TVA separată - 100% pentru companie
   bankAccount?: 'KTS' | 'Urgente_Deblocari' | 'Lacatusul_Priceput';
   onlyTravelFee: boolean;
   workDescription: string;
@@ -52,6 +53,7 @@ export default function CompleteJob() {
     totalAmount: 0,
     materialsCost: 0,
     laborCost: 0,
+    tvaAmount: 0,
     onlyTravelFee: false,
     workDescription: '',
     jobPhotos: [],
@@ -165,6 +167,7 @@ export default function CompleteJob() {
         paymentMethod: completionData.paymentMethod,
         totalAmount: completionData.totalAmount,
         workerCommission: calculateCommission(),
+        tvaAmount: completionData.tvaAmount, // TVA separat - 100% pentru companie
         bankAccount: completionData.bankAccount,
         onlyTravelFee: completionData.onlyTravelFee,
         workDescription: completionData.workDescription,
@@ -218,7 +221,8 @@ export default function CompleteJob() {
 📋 Detalii:
 • Suma totală: ${completionData.totalAmount} RON
 • Comisionul tău: ${calculateCommission().toFixed(2)} RON
-• Metoda de plată: Transfer bancar - ${completionData.bankAccount}
+${completionData.tvaAmount > 0 ? `• TVA pentru companie: ${completionData.tvaAmount} RON
+` : ''}• Metoda de plată: Transfer bancar - ${completionData.bankAccount}
 • Poze încărcate: ${completionData.jobPhotos.length}
 
 ⏳ Lucrarea va apărea în câștiguri după aprobarea administratorului pentru transferurile bancare.`);
@@ -228,7 +232,8 @@ export default function CompleteJob() {
 📋 Detalii:
 • Suma totală: ${completionData.totalAmount} RON  
 • Comisionul tău: ${calculateCommission().toFixed(2)} RON
-• Metoda de plată: ${completionData.paymentMethod === 'cash' ? 'Numerar' : 'Card'}
+${completionData.tvaAmount > 0 ? `• TVA pentru companie: ${completionData.tvaAmount} RON
+` : ''}• Metoda de plată: ${completionData.paymentMethod === 'cash' ? 'Numerar' : 'Card'}
 • Poze încărcate: ${completionData.jobPhotos.length}
 
 💰 Câștigul a fost adăugat automat în contul tău!
@@ -352,6 +357,38 @@ export default function CompleteJob() {
                   required
                 />
               </div>
+              
+              {/* TVA Cash Field - doar pentru plata cash */}
+              {completionData.paymentMethod === 'cash' && (
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: Colors.textSecondary }}>
+                    💰 TVA încasat cash (RON) - 100% pentru companie
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={completionData.tvaAmount || ''}
+                    onChange={(e) => {
+                      const value = parseFloat(e.target.value) || 0;
+                      setCompletionData(prev => ({
+                        ...prev,
+                        tvaAmount: value
+                      }));
+                    }}
+                    className="w-full px-4 py-3 rounded-lg border bg-transparent text-sm md:text-base"
+                    style={{ 
+                      borderColor: Colors.warning,
+                      backgroundColor: Colors.surfaceLight,
+                      color: Colors.text
+                    }}
+                    placeholder="Ex: 23.00"
+                  />
+                  <p className="text-xs mt-1" style={{ color: Colors.warning }}>
+                    ⚠️ TVA-ul se predeă 100% companiei, nu intră în calculul comisionului tău
+                  </p>
+                </div>
+              )}
 
               {!completionData.onlyTravelFee && (
                 <div>
