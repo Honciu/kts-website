@@ -55,12 +55,8 @@ export default function AdminAds() {
   const [showCostsModal, setShowCostsModal] = useState(false);
   const [editingCosts, setEditingCosts] = useState<{workerId: string, salaries: number, materials: number} | null>(null);
   
-  // Site-urile business - uțilizăm utilizatorii reali din baza de date
-  const [workers, setWorkers] = useState([
-    { id: 'cmfudasin0001v090qs1frclc', name: 'Robert' },
-    { id: 'worker_arslan_001', name: 'Arslan' },  
-    { id: 'worker_norbert_001', name: 'Norbert' }
-  ]);
+  // Site-urile business - încărcate din baza de date
+  const [workers, setWorkers] = useState<{id: string, name: string}[]>([]);
   
   const ADS_STORAGE_KEY = 'kts_ads_data';
   const COSTS_STORAGE_KEY = 'kts_weekly_costs';
@@ -84,12 +80,63 @@ export default function AdminAds() {
     return `${start.getDate()}.${(start.getMonth() + 1).toString().padStart(2, '0')} - ${end.getDate()}.${(end.getMonth() + 1).toString().padStart(2, '0')}.${end.getFullYear()}`;
   };
   
-  // Funcțiile de localStorage au fost înlocuite cu API calls
+  // Încarcă utilizatorii din baza de date
+  const loadWorkersFromDatabase = async () => {
+    try {
+      console.log('👥 Loading workers from database...');
+      
+      const response = await fetch('/api/users');
+      const userData = await response.json();
+      
+      if (userData.success) {
+        // Filtrăm doar utilizatorii activi de tip WORKER sau cei care au nume relevante pentru ADS
+        const adsWorkers = userData.data.filter((user: any) => 
+          user.isActive && (
+            user.type === 'WORKER' || 
+            user.name.toLowerCase().includes('robert') ||
+            user.name.toLowerCase().includes('arslan') ||
+            user.name.toLowerCase().includes('norbert')
+          )
+        ).map((user: any) => ({
+          id: user.id,
+          name: user.name
+        }));
+        
+        console.log('✅ ADS Workers loaded:', adsWorkers);
+        setWorkers(adsWorkers);
+      } else {
+        console.error('❌ Failed to load users:', userData.error);
+        // Fallback la utilizatori predefiniti dacă API-ul eșuează
+        setWorkers([
+          { id: 'demo_robert', name: 'Robert' },
+          { id: 'demo_arslan', name: 'Arslan' },
+          { id: 'demo_norbert', name: 'Norbert' }
+        ]);
+      }
+    } catch (error) {
+      console.error('❌ Error loading workers:', error);
+      // Fallback
+      setWorkers([
+        { id: 'demo_robert', name: 'Robert' },
+        { id: 'demo_arslan', name: 'Arslan' },
+        { id: 'demo_norbert', name: 'Norbert' }
+      ]);
+    }
+  };
 
   const loadWeeklyAdData = async () => {
     setLoading(true);
     try {
       console.log('📊 ADS: Loading weekly ad data from DATABASE...');
+      
+      // Verifică dacă workers sunt încărcați
+      if (workers.length === 0) {
+        console.log('⚠️ Workers not loaded yet, waiting...');
+        setLoading(false);
+        return;
+      }
+      
+      console.log('👥 Using workers:', workers);
       
       const weekStart = getWeekStart(selectedWeek);
       const weekEnd = getWeekEnd(selectedWeek);
@@ -174,7 +221,16 @@ export default function AdminAds() {
       return;
     }
     
-    loadWeeklyAdData();
+    // Încarcă mai întâi utilizatorii, apoi datele ADS
+    const initializeData = async () => {
+      await loadWorkersFromDatabase();
+      // Așteaptă puțin ca workers să se actualizeze în state
+      setTimeout(() => {
+        loadWeeklyAdData();
+      }, 500);
+    };
+    
+    initializeData();
     
     realApiService.addChangeListener('admin-ads-real', (hasChanges) => {
       if (hasChanges) {
@@ -187,6 +243,14 @@ export default function AdminAds() {
       realApiService.removeChangeListener('admin-ads-real');
     };
   }, [user, router, selectedWeek]);
+  
+  // Effect pentru încărcarea datelor când workers sunt gata
+  useEffect(() => {
+    if (workers.length > 0 && user?.type === 'admin') {
+      console.log('👥 Workers loaded, loading ADS data...');
+      loadWeeklyAdData();
+    }
+  }, [workers]);
   
   const navigateWeek = (direction: 'prev' | 'next') => {
     const newWeek = new Date(selectedWeek);
