@@ -30,10 +30,18 @@ class RealAPIService {
   
   constructor() {
     // Detectează automat URL-ul API-ului
-    this.baseUrl = process.env.NEXT_PUBLIC_API_URL || 
-                   (typeof window !== 'undefined' ? window.location.origin + '/api' : 'http://localhost:3000/api');
+    const envUrl = process.env.NEXT_PUBLIC_API_URL;
+    const windowUrl = typeof window !== 'undefined' ? window.location.origin + '/api' : null;
+    const fallbackUrl = 'http://localhost:3000/api';
     
-    console.log('🌐 RealAPIService initialized with baseUrl:', this.baseUrl);
+    this.baseUrl = envUrl || windowUrl || fallbackUrl;
+    
+    console.log('🌐 RealAPIService URL detection:');
+    console.log('  - ENV URL:', envUrl);
+    console.log('  - Window URL:', windowUrl);
+    console.log('  - Fallback URL:', fallbackUrl);
+    console.log('  - Selected baseUrl:', this.baseUrl);
+    
     this.startPolling();
   }
 
@@ -75,6 +83,9 @@ class RealAPIService {
    * POST /api/jobs - Creează un job nou
    */
   async createJob(job: Omit<Job, 'id' | 'createdAt'>): Promise<APIResponse<Job>> {
+    console.log('🌐 RealAPI: Creating job with URL:', `${this.baseUrl}/jobs`);
+    console.log('🌐 RealAPI: Job data:', job);
+    
     try {
       const response = await fetch(`${this.baseUrl}/jobs`, {
         method: 'POST',
@@ -84,16 +95,27 @@ class RealAPIService {
         body: JSON.stringify(job)
       });
 
+      console.log('🌐 RealAPI: Response status:', response.status, response.statusText);
+      
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        const errorText = await response.text();
+        console.error('❌ RealAPI: HTTP Error Response:', errorText);
+        throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
       }
 
       const data = await response.json();
-      console.log('🌐 RealAPI: Created job:', data.data?.id);
+      console.log('🌐 RealAPI: Success! Created job:', data.data?.id);
+      console.log('🌐 RealAPI: Full response:', data);
       
       return data;
     } catch (error) {
       console.error('❌ RealAPI: Error creating job:', error);
+      console.error('❌ RealAPI: Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        baseUrl: this.baseUrl,
+        jobData: job
+      });
+      
       return {
         success: false,
         data: {} as Job,
