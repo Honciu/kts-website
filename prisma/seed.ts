@@ -5,8 +5,11 @@ const prisma = new PrismaClient()
 
 async function main() {
   console.log('🌱 Starting database seed...')
-
   // Curăță datele existente
+  await prisma.partnerWeeklyCosts.deleteMany()
+  await prisma.businessPartner.deleteMany()
+  await prisma.weeklyFinancialStats.deleteMany()
+  await prisma.weeklyAdsCosts.deleteMany()
   await prisma.notification.deleteMany()
   await prisma.jobUpdate.deleteMany()
   await prisma.job.deleteMany()
@@ -36,7 +39,8 @@ async function main() {
       phone: '+40721111111',
       type: 'WORKER',
       password: workerPassword,
-      isActive: true
+      isActive: true,
+      salaryPercentage: 35
     }
   })
 
@@ -47,7 +51,8 @@ async function main() {
       phone: '+40721222222',
       type: 'WORKER',
       password: workerPassword,
-      isActive: true
+      isActive: true,
+      salaryPercentage: 30
     }
   })
 
@@ -58,7 +63,8 @@ async function main() {
       phone: '+40721333333', 
       type: 'WORKER',
       password: workerPassword,
-      isActive: true
+      isActive: true,
+      salaryPercentage: 30
     }
   })
 
@@ -180,6 +186,85 @@ async function main() {
   })
 
   console.log('✅ Sample notifications created')
+
+  // Creează parteneri business
+  const partners = [
+    { name: 'Robert', email: 'robert@kts.com' },
+    { name: 'Alex', email: 'alex@kts.com' },
+    { name: 'Maria', email: 'maria@kts.com' },
+  ]
+
+  for (const partnerData of partners) {
+    const partner = await prisma.businessPartner.create({
+      data: partnerData
+    })
+    console.log(`✅ Business partner created: ${partner.name}`)
+
+    // Creează costuri săptămânale pentru partener
+    const currentWeek = new Date()
+    currentWeek.setDate(currentWeek.getDate() - currentWeek.getDay() + 1) // Start of week (Monday)
+    const weekEnd = new Date(currentWeek)
+    weekEnd.setDate(weekEnd.getDate() + 6)
+
+    await prisma.partnerWeeklyCosts.create({
+      data: {
+        partnerId: partner.id,
+        weekStart: currentWeek,
+        weekEnd: weekEnd,
+        dailyCosts: [50, 45, 60, 55, 70, 40, 30], // Mon-Sun
+        totalCosts: 350,
+        notes: `Sample weekly costs for ${partner.name}`
+      }
+    })
+  }
+
+  // Creează statistici financiare săptămânale
+  const statsWeeks = 4 // Creează stats pentru ultimele 4 săptămâni
+  
+  for (let i = 0; i < statsWeeks; i++) {
+    const weekStart = new Date()
+    weekStart.setDate(weekStart.getDate() - (i * 7) - weekStart.getDay() + 1)
+    const weekEnd = new Date(weekStart)
+    weekEnd.setDate(weekEnd.getDate() + 6)
+
+    const baseRevenue = 2000 + Math.floor(Math.random() * 1000)
+    const cashRevenue = Math.floor(baseRevenue * 0.5)
+    const cardRevenue = Math.floor(baseRevenue * 0.3)
+    const bankTransferRevenue = baseRevenue - cashRevenue - cardRevenue
+    const tvaAmount = Math.floor(baseRevenue * 0.19)
+    const totalSalaries = Math.floor(baseRevenue * 0.3)
+    const totalMaterials = Math.floor(baseRevenue * 0.15)
+    const totalAdsSpend = 200 + Math.floor(Math.random() * 100)
+
+    await prisma.weeklyFinancialStats.create({
+      data: {
+        weekStart,
+        weekEnd,
+        totalRevenue: baseRevenue,
+        cashRevenue,
+        cardRevenue,
+        bankTransferRevenue,
+        tvaAmount,
+        cardPaymentDetails: {
+          KTS: Math.floor(cardRevenue * 0.4),
+          Urgente_Deblocari: Math.floor(cardRevenue * 0.4),
+          Lacatusul_Priceput: Math.floor(cardRevenue * 0.2)
+        },
+        bankTransferDetails: {
+          KTS: Math.floor(bankTransferRevenue * 0.5),
+          Urgente_Deblocari: Math.floor(bankTransferRevenue * 0.3),
+          Lacatusul_Priceput: Math.floor(bankTransferRevenue * 0.2)
+        },
+        totalSalaries,
+        totalMaterials,
+        totalAdsSpend,
+        cashToCollect: Math.max(0, cashRevenue - Math.floor(cashRevenue * 0.3)),
+        netProfit: baseRevenue - totalSalaries - totalMaterials - totalAdsSpend
+      }
+    })
+  }
+
+  console.log(`✅ Weekly financial stats created for ${statsWeeks} weeks`)
   console.log('🌱 Database seed completed!')
   console.log('')
   console.log('🚀 Ready to start application:')
