@@ -36,6 +36,7 @@ export default function WorkerEarnings() {
     totalEarnings: number;
     totalCollected: number;
     amountToHandOver: number;
+    tvaAmount: number;
     completedJobs: number;
     pendingApproval: number;
     travelOnlyJobs: number;
@@ -44,6 +45,7 @@ export default function WorkerEarnings() {
     totalEarnings: 0,
     totalCollected: 0,
     amountToHandOver: 0,
+    tvaAmount: 0,
     completedJobs: 0,
     pendingApproval: 0,
     travelOnlyJobs: 0
@@ -199,9 +201,18 @@ export default function WorkerEarnings() {
             return total; // Nu adaugă sumele de pe card sau transfer bancar
           }, 0);
           
+          // Calculează TVA DOAR din joburile cu plată cash care au TVA specificat
+          const tvaAmount = confirmedJobs.reduce((total, job) => {
+            if (job.completionData?.paymentMethod === 'cash' && job.completionData?.tvaAmount) {
+              return total + (job.completionData.tvaAmount || 0);
+            }
+            return total;
+          }, 0);
+          
           console.log('💰 EARNINGS PAYMENT BREAKDOWN:');
           console.log('  - Total collected from all jobs:', totalCollected, 'RON');
           console.log('  - Cash collected (physical money):', cashCollected, 'RON');
+          console.log('  - TVA from cash jobs:', tvaAmount, 'RON');
           console.log('  - Worker commission:', totalEarnings, 'RON');
           console.log('  - Amount to hand over (Cash - Commission):', Math.max(0, cashCollected - totalEarnings), 'RON');
           
@@ -212,6 +223,7 @@ export default function WorkerEarnings() {
             totalEarnings,
             totalCollected,
             amountToHandOver: Math.max(0, cashCollected - totalEarnings), // Folosește doar CASH-ul
+            tvaAmount: tvaAmount, // TVA doar din joburile cash
             completedJobs: confirmedJobs.length,
             pendingApproval: pendingApproval.length,
             travelOnlyJobs
@@ -313,15 +325,16 @@ export default function WorkerEarnings() {
   };
 
   const copyEarningsReport = () => {
+    const tvaLine = weeklyReport.tvaAmount > 0 ? `\nTVA de Predat (CASH+TVA): ${weeklyReport.tvaAmount} RON` : '';
     const report = `Raport Câștiguri - Săptămâna ${formatWeekRange(selectedWeek)}
 
 Câștiguri Confirmate: ${weeklyReport.totalEarnings} RON
 Suma Încasată Total: ${weeklyReport.totalCollected} RON
-Suma de Predat: ${weeklyReport.amountToHandOver} RON
+Suma de Predat (doar CASH): ${weeklyReport.amountToHandOver} RON${tvaLine}
 
 Joburi Finalizate: ${weeklyReport.completedJobs}
 În Așteptarea Aprobării: ${weeklyReport.pendingApproval}
-Doar Deplasării: ${weeklyReport.travelOnlyJobs}
+Doar Deplăsări: ${weeklyReport.travelOnlyJobs}
 
 Generat: ${new Date().toLocaleString('ro-RO')}`;
     
@@ -438,7 +451,7 @@ Generat: ${new Date().toLocaleString('ro-RO')}`;
         </div>
 
         {/* Financial Overview */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
           {/* Câștiguri Confirmate */}
           <div
             className="p-6 rounded-lg border"
@@ -501,7 +514,29 @@ Generat: ${new Date().toLocaleString('ro-RO')}`;
               Suma de Predat
             </p>
             <p className="text-sm mt-1" style={{ color: Colors.textMuted }}>
-              Pentru companie
+              Pentru companie (doar CASH)
+            </p>
+          </div>
+
+          {/* TVA de Predat */}
+          <div
+            className="p-6 rounded-lg border"
+            style={{
+              backgroundColor: Colors.surface,
+              borderColor: Colors.border,
+            }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <ArrowUp size={24} color={Colors.warning} />
+              <span className="text-2xl font-bold" style={{ color: Colors.text }}>
+                {weeklyReport.tvaAmount} RON
+              </span>
+            </div>
+            <p className="font-medium text-base" style={{ color: Colors.textSecondary }}>
+              TVA de Predat
+            </p>
+            <p className="text-sm mt-1" style={{ color: Colors.textMuted }}>
+              Doar din joburile CASH+TVA
             </p>
           </div>
         </div>
@@ -602,6 +637,12 @@ Generat: ${new Date().toLocaleString('ro-RO')}`;
                     <span>De predat companiei (doar CASH):</span>
                     <span style={{ color: Colors.error }}>{weeklyReport.amountToHandOver} RON</span>
                   </div>
+                  {weeklyReport.tvaAmount > 0 && (
+                    <div className="flex justify-between font-semibold mt-1">
+                      <span>TVA de predat (CASH+TVA):</span>
+                      <span style={{ color: Colors.warning }}>{weeklyReport.tvaAmount} RON</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

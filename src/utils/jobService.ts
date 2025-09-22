@@ -25,6 +25,7 @@ interface Job {
     paymentMethod: 'cash' | 'card' | 'bank_transfer';
     totalAmount: number;
     workerCommission: number;
+    tvaAmount?: number; // TVA separat - doar pentru plata cash
     bankAccount?: string;
     onlyTravelFee: boolean;
     workDescription: string;

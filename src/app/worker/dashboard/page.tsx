@@ -138,8 +138,14 @@ export default function WorkerDashboard() {
         
         const amountToHandOver = Math.max(0, cashCollected - weeklyEarnings);
         
-        // Calculează TVA (19% din total încasat)
-        const tvaAmount = Math.round(totalCollected * 0.19);
+        // Calculează TVA DOAR din joburile cu plată cash care au TVA specificat
+        const tvaAmount = completedJobs.reduce((total, job) => {
+          // Doar joburile cu plată cash și care au TVA completat
+          if (job.completionData?.paymentMethod === 'cash' && job.completionData?.tvaAmount) {
+            return total + (job.completionData.tvaAmount || 0);
+          }
+          return total;
+        }, 0);
         
         const urgentJobs = activeJobs.filter(job => job.priority === 'urgent').length;
         
@@ -164,7 +170,7 @@ export default function WorkerDashboard() {
         console.log('  - Total collected from clients:', totalCollected, 'RON');
         console.log('  - Cash collected (physical money):', cashCollected, 'RON');
         console.log('  - Amount to hand over (Cash - Commission):', amountToHandOver, 'RON');
-        console.log('  - TVA amount (19%):', tvaAmount, 'RON');
+        console.log('  - TVA amount (CASH jobs only):', tvaAmount, 'RON');
         console.log('  - Completed jobs:', completedJobs.length);
         
         console.log('✅ Worker Dashboard: Data loaded from REAL API successfully!');
@@ -643,7 +649,7 @@ export default function WorkerDashboard() {
                   <p className="text-lg font-bold" style={{ color: Colors.warning }}>
                     {weeklyReport.tvaAmount} RON
                   </p>
-                  <p className="text-sm" style={{ color: Colors.textSecondary }}>TVA 19%</p>
+                  <p className="text-sm" style={{ color: Colors.textSecondary }}>TVA Cash</p>
                 </div>
               </div>
               
