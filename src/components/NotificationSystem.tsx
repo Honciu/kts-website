@@ -2,8 +2,20 @@
 
 import React, { useEffect, useState } from 'react';
 import { Colors } from '@/constants/colors';
-import { jobService, type NotificationData } from '@/utils/jobService';
+import { realApiService } from '@/utils/realApiService';
 import { useAuth } from '@/contexts/AuthContext';
+
+// Define NotificationData interface since we're no longer importing from jobService
+interface NotificationData {
+  id: string;
+  type: 'job_assigned' | 'job_accepted' | 'job_rejected' | 'job_completed' | 'appointment_reminder';
+  message: string;
+  timestamp: string;
+  read: boolean;
+  urgent: boolean;
+  jobId?: string;
+  workerId?: string;
+}
 import { 
   Bell, 
   X, 
@@ -32,43 +44,26 @@ export default function NotificationSystem({ maxVisibleNotifications = 3 }: Noti
   useEffect(() => {
     if (!user) return;
 
-    // Load initial notifications
+    // Simplified notification system - no persistence for now
+    // Real implementation would load from API or database
     const loadNotifications = () => {
-      const userType = user.type === 'admin' ? 'admin' : 'worker';
-      const userId = user.type === 'admin' ? 'admin1' : 'worker1'; // In real app would be user.id
-      
-      const notifications = jobService.getNotificationsForUser(userId, userType);
-      const unread = jobService.getUnreadNotificationCount(userId, userType);
-      
-      setAllNotifications(notifications);
-      setUnreadCount(unread);
+      // For now, just reset notifications as we focus on job sync
+      setAllNotifications([]);
+      setUnreadCount(0);
     };
 
     loadNotifications();
 
-    // Add listener for new notifications
-    jobService.addListener('notification-system', {
-      onJobUpdate: () => loadNotifications(),
-      onJobComplete: () => loadNotifications(),
-      onJobStatusChange: () => loadNotifications(),
-      onNotification: (notification) => {
-        const userType = user.type === 'admin' ? 'admin' : 'worker';
-        const userId = user.type === 'admin' ? 'admin1' : 'worker1';
-        
-        // Check if notification is for current user
-        const shouldShowNotification = userType === 'worker' 
-          ? notification.workerId === userId || ['job_assigned', 'appointment_reminder'].includes(notification.type)
-          : ['job_accepted', 'job_rejected', 'job_completed'].includes(notification.type);
-
-        if (shouldShowNotification) {
-          showToastNotification(notification);
-          loadNotifications();
-        }
+    // Add listener for realApiService changes to show job-related toasts
+    realApiService.addChangeListener('notification-system', (hasChanges) => {
+      if (hasChanges) {
+        console.log('🔔 Notification System: Real API changes detected');
+        // Could show a simple toast here for job updates
       }
     });
 
     return () => {
-      jobService.removeListener('notification-system');
+      realApiService.removeChangeListener('notification-system');
     };
   }, [user]);
 
@@ -99,7 +94,7 @@ export default function NotificationSystem({ maxVisibleNotifications = 3 }: Noti
   };
 
   const markAsRead = (notificationId: string) => {
-    jobService.markNotificationAsRead(notificationId);
+    // Simplified - just update local state
     setUnreadCount(prev => Math.max(0, prev - 1));
     setAllNotifications(prev => 
       prev.map(notif => 
@@ -109,7 +104,7 @@ export default function NotificationSystem({ maxVisibleNotifications = 3 }: Noti
   };
 
   const deleteNotification = (notificationId: string) => {
-    jobService.deleteNotification(notificationId);
+    // Simplified - just remove from local state
     setAllNotifications(prev => prev.filter(notif => notif.id !== notificationId));
     if (allNotifications.find(n => n.id === notificationId && !n.read)) {
       setUnreadCount(prev => Math.max(0, prev - 1));

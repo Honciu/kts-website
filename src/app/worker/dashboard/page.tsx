@@ -51,12 +51,11 @@ export default function WorkerDashboard() {
       
       if (apiResponse.success) {
         const allJobs = apiResponse.data;
-        const workerId = 'cmfudasin0001v090qs1frclc'; // Force Robert's ID from seed data
+        const workerId = user.id; // Use real user ID from session
         
         console.log('🔍 Worker Dashboard DEBUG:');
         console.log('  - User from session:', user);
-        console.log('  - User ID from session:', user?.id);
-        console.log('  - Forced Worker ID:', workerId);
+        console.log('  - Worker ID (user.id):', workerId);
         console.log('  - Total jobs from API:', allJobs.length);
         console.log('  - All jobs:', allJobs.map(j => ({ id: j.id, assignedTo: j.assignedEmployeeId, service: j.serviceName, status: j.status })));
         

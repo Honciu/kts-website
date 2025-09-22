@@ -110,13 +110,30 @@ export default function AdminDashboard() {
           activeEmployees = activeEmployeeIds.size;
         }
         
-        // Calculate weekly revenue and profit
-        const oneWeekAgo = new Date();
-        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+        // Helper functions for week calculations (same as ads page)
+        const getWeekStart = (date: Date) => {
+          const d = new Date(date);
+          const day = d.getDay();
+          const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday
+          return new Date(d.setDate(diff));
+        };
+        
+        const getWeekEnd = (date: Date) => {
+          const start = getWeekStart(date);
+          return new Date(start.getTime() + 6 * 24 * 60 * 60 * 1000);
+        };
+        
+        // Calculate current week boundaries
+        const currentWeekStart = getWeekStart(new Date());
+        const currentWeekEnd = getWeekEnd(new Date());
+        
+        console.log('📅 Week Boundaries:');
+        console.log(`  • Week start: ${currentWeekStart.toISOString()}`);
+        console.log(`  • Week end: ${currentWeekEnd.toISOString()}`);
         
         const weeklyJobs = allJobs.filter(job => {
           const jobDate = new Date(job.completedAt || job.createdAt);
-          return job.status === 'completed' && jobDate >= oneWeekAgo;
+          return job.status === 'completed' && jobDate >= currentWeekStart && jobDate <= currentWeekEnd;
         });
         
         console.log('📋 Weekly Jobs Calculation:');
@@ -135,7 +152,7 @@ export default function AdminDashboard() {
           return total + (job.completionData?.workerCommission || 0);
         }, 0);
         
-        // Calculate ad spending for the same week
+        // Calculate ad spending for the CURRENT week (same logic as ads page)
         const ADS_STORAGE_KEY = 'kts_ads_data';
         let weeklyAdSpend = 0;
         
@@ -144,18 +161,25 @@ export default function AdminDashboard() {
             const savedAdsData = localStorage.getItem(ADS_STORAGE_KEY);
             if (savedAdsData) {
               const adsData = JSON.parse(savedAdsData);
-              const weekKey = oneWeekAgo.toISOString().split('T')[0];
+              const weekKey = currentWeekStart.toISOString().split('T')[0];
+              
+              console.log('📱 Ad Spend Calculation:');
+              console.log(`  • Current week key: ${weekKey}`);
+              console.log(`  • Available data keys:`, Object.keys(adsData));
               
               // Sum ad spending across all workers for this week
               Object.keys(adsData).forEach(workerId => {
+                console.log(`  • Checking worker ${workerId}:`, adsData[workerId]);
                 if (adsData[workerId][weekKey]) {
-                  weeklyAdSpend += adsData[workerId][weekKey].weeklyTotal || 0;
+                  const workerAdSpend = adsData[workerId][weekKey].weeklyTotal || 0;
+                  weeklyAdSpend += workerAdSpend;
+                  console.log(`    - Added ${workerAdSpend} RON from worker ${workerId}`);
                 }
               });
               
-              console.log('📱 Ad Spend Calculation:');
-              console.log(`  • Week key: ${weekKey}`);
               console.log(`  • Total ad spend this week: ${weeklyAdSpend} RON`);
+            } else {
+              console.log('  • No ads data found in localStorage');
             }
           } catch (error) {
             console.error('❌ Error loading ad spend data:', error);
