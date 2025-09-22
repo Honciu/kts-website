@@ -51,7 +51,7 @@ export default function WorkerDashboard() {
       
       if (apiResponse.success) {
         const allJobs = apiResponse.data;
-        const workerId = user.id; // Use real user ID from session
+        const workerId = user?.id || 'default-worker'; // Use real user ID from session
         
         console.log('🔍 Worker Dashboard DEBUG:');
         console.log('  - User from session:', user);
