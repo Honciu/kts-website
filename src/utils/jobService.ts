@@ -13,7 +13,7 @@ interface Job {
   specialInstructions?: string;
   assignedEmployeeId: string;
   assignedEmployeeName: string;
-  status: 'assigned' | 'accepted' | 'in_progress' | 'completed' | 'cancelled' | 'pending_approval';
+  status: 'assigned' | 'accepted' | 'in_progress' | 'completed' | 'cancelled' | 'pending_approval' | 'rejected';
   priority: 'normal' | 'high' | 'urgent';
   createdAt: string;
   acceptedAt?: string;

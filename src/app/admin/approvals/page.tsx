@@ -144,15 +144,57 @@ export default function AdminApprovals() {
     if (!confirmed) return;
 
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
+      console.log(`🏦 Approving bank transfer for job ${transferId}...`);
+      
+      // Get current job data from API
+      const jobsResponse = await realApiService.getJobs();
+      if (!jobsResponse.success) {
+        throw new Error('Failed to fetch job data');
+      }
+      
+      const currentJob = jobsResponse.data.find(j => j.id === transferId);
+      if (!currentJob) {
+        throw new Error('Job not found');
+      }
+      
+      // Update job status from pending_approval to completed via REAL API
+      const updatedJob = {
+        ...currentJob,
+        status: 'completed' as const,
+        approvedAt: new Date().toISOString(),
+        approvedBy: user?.name || 'Admin'
+      };
+      
+      console.log('🔄 Updating job status to completed via realApiService:', {
+        jobId: transferId,
+        oldStatus: currentJob.status,
+        newStatus: 'completed',
+        workerCommission: currentJob.completionData?.workerCommission
+      });
+      
+      const updateResponse = await realApiService.updateJob(transferId, updatedJob);
+      
+      if (!updateResponse.success) {
+        throw new Error(updateResponse.error || 'Failed to update job status');
+      }
+      
+      console.log('✅ Job approved successfully via REAL API!');
+      console.log('  - Job ID:', updateResponse.data.id);
+      console.log('  - Status:', updateResponse.data.status);
+      console.log('  - Worker commission:', updateResponse.data.completionData?.workerCommission);
+      
+      // Force immediate sync to propagate changes
+      console.log('🚀 CRITICAL: Triggering immediate force sync for approval...');
+      await realApiService.forceSync();
+      
+      // Remove from local state
       setPendingTransfers(prev => prev.filter(t => t.id !== transferId));
       
-      alert(`✅ Transfer aprobat cu succes!\n\nComisionul de ${transfer.workerCommission} RON a fost adăugat în contul lui ${transfer.workerName}.`);
+      alert(`✅ Transfer aprobat cu succes!\n\nComisionul de ${transfer.workerCommission} RON a fost adăugat în contul lui ${transfer.workerName}.\n\n🔄 Jobul va apărea în câștigurile worker-ului în 2-3 secunde!`);
       
     } catch (error) {
-      alert('A apărut o eroare la aprobarea transferului.');
+      console.error('❌ Error approving transfer:', error);
+      alert(`A apărut o eroare la aprobarea transferului: ${error instanceof Error ? error.message : 'Eroare necunoscută'}`);
     }
   };
 
@@ -167,15 +209,58 @@ export default function AdminApprovals() {
     if (!confirmed) return;
 
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
+      console.log(`🚫 Rejecting bank transfer for job ${transferId}...`);
+      
+      // Get current job data from API
+      const jobsResponse = await realApiService.getJobs();
+      if (!jobsResponse.success) {
+        throw new Error('Failed to fetch job data');
+      }
+      
+      const currentJob = jobsResponse.data.find(j => j.id === transferId);
+      if (!currentJob) {
+        throw new Error('Job not found');
+      }
+      
+      // Update job status from pending_approval to rejected via REAL API
+      const updatedJob = {
+        ...currentJob,
+        status: 'rejected' as const,
+        rejectedAt: new Date().toISOString(),
+        rejectedBy: user?.name || 'Admin',
+        rejectionReason: reason
+      };
+      
+      console.log('🔄 Updating job status to rejected via realApiService:', {
+        jobId: transferId,
+        oldStatus: currentJob.status,
+        newStatus: 'rejected',
+        reason: reason
+      });
+      
+      const updateResponse = await realApiService.updateJob(transferId, updatedJob);
+      
+      if (!updateResponse.success) {
+        throw new Error(updateResponse.error || 'Failed to update job status');
+      }
+      
+      console.log('✅ Job rejected successfully via REAL API!');
+      console.log('  - Job ID:', updateResponse.data.id);
+      console.log('  - Status:', updateResponse.data.status);
+      console.log('  - Rejection reason:', reason);
+      
+      // Force immediate sync to propagate changes
+      console.log('🚀 CRITICAL: Triggering immediate force sync for rejection...');
+      await realApiService.forceSync();
+      
+      // Remove from local state
       setPendingTransfers(prev => prev.filter(t => t.id !== transferId));
       
-      alert(`❌ Transfer respins.\n\n${transfer.workerName} va fi notificat cu motivul: "${reason}"`);
+      alert(`❌ Transfer respins cu succes.\n\n${transfer.workerName} va fi notificat cu motivul: "${reason}"\n\n🔄 Jobul a fost marcat ca respins și îndepărtat din listă.`);
       
     } catch (error) {
-      alert('A apărut o eroare la respingerea transferului.');
+      console.error('❌ Error rejecting transfer:', error);
+      alert(`A apărut o eroare la respingerea transferului: ${error instanceof Error ? error.message : 'Eroare necunoscută'}`);
     }
   };
 
