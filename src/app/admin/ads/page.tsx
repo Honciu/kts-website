@@ -31,7 +31,6 @@ interface AdCampaign {
   roi: number;
   status: 'active' | 'completed' | 'paused';
 }
-} from 'lucide-react';
 
 export default function AdminAds() {
   const { user } = useAuth();
