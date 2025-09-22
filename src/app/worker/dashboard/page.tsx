@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Colors } from '@/constants/colors';
 import WorkerLayout from '@/components/WorkerLayout';
 import { jobService, type Job } from '@/utils/jobService';
+import { realApiService } from '@/utils/realApiService';
 import { simpleSync } from '@/utils/simpleSync';
 import '@/utils/debugUtils'; // Load debugging utilities
 import { 
@@ -38,27 +39,66 @@ export default function WorkerDashboard() {
   const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Load active jobs and stats - moved outside useEffect to be accessible
-  const loadDashboardData = React.useCallback(() => {
+  // Load active jobs and stats - FIXED to use REAL API instead of localStorage!
+  const loadDashboardData = React.useCallback(async () => {
     setIsRefreshing(true);
-    console.log('🔄 Worker Dashboard: Loading data...');
+    console.log('🔄 Worker Dashboard: Loading data from REAL API...');
     
-    const jobs = jobService.getActiveJobsForWorker('worker1'); // În aplicația reală ar fi user.id
-    const workerStats = jobService.getWorkerStats('worker1');
-    const currentWeekReport = jobService.getWeeklyFinancialReport('worker1', new Date());
-    
-    console.log(`📊 Worker Dashboard: Found ${jobs.length} active jobs`);
-    console.log('📊 Worker Dashboard: Jobs:', jobs.map(j => `#${j.id} - ${j.serviceName}`));
-    
-    setActiveJobs(jobs);
-    setStats(workerStats);
-    setWeeklyReport({
-      totalEarnings: currentWeekReport.totalEarnings,
-      totalCollected: currentWeekReport.totalCollected,
-      amountToHandOver: currentWeekReport.amountToHandOver,
-      completedJobs: currentWeekReport.completedJobs,
-      pendingApproval: currentWeekReport.pendingApproval
-    });
+    try {
+      // Folosește API-ul real în loc de localStorage!
+      const apiResponse = await realApiService.getJobs();
+      
+      if (apiResponse.success) {
+        const allJobs = apiResponse.data;
+        const workerId = user?.id || 'cmfudasin0001v090qs1frclc'; // Robert's ID din seed
+        
+        // Filtrează joburile pentru worker-ul curent
+        const workerJobs = allJobs.filter(job => job.assignedEmployeeId === workerId);
+        const activeJobs = workerJobs.filter(job => ['assigned', 'accepted', 'in_progress'].includes(job.status));
+        const completedJobs = workerJobs.filter(job => ['completed', 'pending_approval'].includes(job.status));
+        
+        console.log(`📊 Worker Dashboard: Found ${activeJobs.length} active jobs from API`);
+        console.log('📊 Worker Dashboard: Jobs:', activeJobs.map(j => `#${j.id} - ${j.serviceName}`));
+        
+        // Calculează statistici
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const completedToday = completedJobs.filter(job => {
+          if (!job.completedAt) return false;
+          const completedDate = new Date(job.completedAt);
+          completedDate.setHours(0, 0, 0, 0);
+          return completedDate.getTime() === today.getTime();
+        }).length;
+        
+        const weeklyEarnings = completedJobs.reduce((total, job) => {
+          return total + (job.completionData?.workerCommission || 0);
+        }, 0);
+        
+        const urgentJobs = activeJobs.filter(job => job.priority === 'urgent').length;
+        
+        setActiveJobs(activeJobs);
+        setStats({
+          activeJobs: activeJobs.length,
+          completedToday,
+          weeklyEarnings,
+          urgentJobs
+        });
+        setWeeklyReport({
+          totalEarnings: weeklyEarnings,
+          totalCollected: weeklyEarnings,
+          amountToHandOver: Math.max(0, weeklyEarnings - 100),
+          completedJobs: completedJobs.length,
+          pendingApproval: completedJobs.filter(j => j.status === 'pending_approval').length
+        });
+        
+        console.log('✅ Worker Dashboard: Data loaded from REAL API successfully!');
+      } else {
+        console.error('❌ Worker Dashboard: API error:', apiResponse);
+      }
+    } catch (error) {
+      console.error('❌ Worker Dashboard: Error loading from API:', error);
+    }
     
     setLastSyncTime(new Date());
     
@@ -66,7 +106,7 @@ export default function WorkerDashboard() {
     setTimeout(() => {
       setIsRefreshing(false);
     }, 500);
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     if (!user || user.type !== 'worker') {
@@ -84,50 +124,50 @@ export default function WorkerDashboard() {
       loadDashboardData();
     }, 1000);
     
-    // Add listener for real-time updates
-    jobService.addListener('worker-dashboard', {
+    // Add REAL API listener for cross-device sync!
+    realApiService.addChangeListener('worker-dashboard-real', (hasChanges) => {
+      if (hasChanges) {
+        console.log('📡 Worker Dashboard: REAL API changes detected - syncing!');
+        loadDashboardData();
+      }
+    });
+    
+    // Keep old listeners as backup, but REAL API is primary
+    jobService.addListener('worker-dashboard-backup', {
       onJobUpdate: (job, update) => {
-        console.log('📡 Worker Dashboard: Job update received', job.id, update.data?.action || 'unknown');
+        console.log('📡 Worker Dashboard: Backup job update received', job.id);
         loadDashboardData();
       },
       onJobComplete: (job) => {
-        console.log('🎉 Worker Dashboard: Job completed', job.id);
+        console.log('🎉 Worker Dashboard: Backup job completed', job.id);
         loadDashboardData();
       },
       onJobStatusChange: (jobId, oldStatus, newStatus) => {
-        console.log('🔄 Worker Dashboard: Status change', jobId, `${oldStatus} -> ${newStatus}`);
+        console.log('🔄 Worker Dashboard: Backup status change', jobId, `${oldStatus} -> ${newStatus}`);
         loadDashboardData();
       }
     });
     
-    // Add periodic refresh to catch any missed updates
-    const refreshInterval = setInterval(() => {
-      console.log('🔄 Worker Dashboard: Periodic refresh (10s)');
-      loadDashboardData();
-    }, 10000); // Every 10 seconds
+    // Force sync from API every 5 seconds as fallback
+    const forceApiSync = setInterval(() => {
+      console.log('⚡ Worker Dashboard: Force API sync (5s)');
+      realApiService.forceSync();
+    }, 5000);
     
-    // Add simple sync listener for guaranteed updates
-    simpleSync.addListener('worker-dashboard-simple', () => {
-      console.log('🔥 Worker Dashboard: Simple sync triggered - reloading data');
-      loadDashboardData();
-    });
-    
-    // Add frequent checks for missed updates
-    const quickCheckInterval = setInterval(() => {
-      console.log('⚡ Worker Dashboard: Quick check (3s)');
-      loadDashboardData();
-    }, 3000); // Every 3 seconds for debugging
-    
-    // Cleanup listener and interval
+    // Cleanup listeners and intervals
     return () => {
-      console.log('🧾 Worker Dashboard: Cleaning up listeners');
-      jobService.removeListener('worker-dashboard');
+      console.log('🧾 Worker Dashboard: Cleaning up ALL listeners including REAL API');
+      
+      // Remove REAL API listener (primary)
+      realApiService.removeChangeListener('worker-dashboard-real');
+      
+      // Remove backup listeners
+      jobService.removeListener('worker-dashboard-backup');
       simpleSync.removeListener('worker-dashboard-simple');
-      if (refreshInterval) {
-        clearInterval(refreshInterval);
-      }
-      if (quickCheckInterval) {
-        clearInterval(quickCheckInterval);
+      
+      // Clear intervals
+      if (forceApiSync) {
+        clearInterval(forceApiSync);
       }
     };
   }, [user, router]);
@@ -149,21 +189,31 @@ export default function WorkerDashboard() {
     { title: 'Urgent', value: stats.urgentJobs.toString(), color: Colors.error, icon: AlertCircle },
   ];
 
-  const acceptJob = (jobId: string) => {
+  const acceptJob = async (jobId: string) => {
     const job = activeJobs.find(j => j.id === jobId);
     if (!job) return;
     
     const confirmAccept = confirm(`Acceptați lucrarea #${jobId} - ${job.serviceName} pentru ${job.clientName}?`);
     if (!confirmAccept) return;
     
-    jobService.updateJobStatus(jobId, 'accepted', 'worker1', user?.name || 'Worker');
-    
-    // Simulăm că primesc o programare în 30 min pentru demonstrare
-    setTimeout(() => {
-      jobService.createAppointmentReminder('worker1', jobId, new Date(Date.now() + 30 * 60 * 1000));
-    }, 2000);
-    
-    alert(`Ați acceptat lucrarea #${jobId}! Veți fi îndrumați spre locație.`);
+    try {
+      // Folosește API-ul REAL pentru acceptare!
+      const updatedJob = { ...job, status: 'accepted' as const, acceptedAt: new Date().toISOString() };
+      const response = await realApiService.updateJob(jobId, updatedJob);
+      
+      if (response.success) {
+        console.log('✅ Job accepted via REAL API:', jobId);
+        alert(`Ați acceptat lucrarea #${jobId}! Veți fi îndrumați spre locație.`);
+        
+        // Refresh immediate pentru a vedea schimbarea
+        loadDashboardData();
+      } else {
+        alert('Eroare la acceptarea lucrării. Încercați din nou.');
+      }
+    } catch (error) {
+      console.error('❌ Error accepting job:', error);
+      alert('Eroare la acceptarea lucrării. Încercați din nou.');
+    }
   };
 
   const navigateToJob = (address: string) => {
@@ -172,7 +222,7 @@ export default function WorkerDashboard() {
     alert('Veți fi redirecționați către Google Maps pentru navigație.');
   };
 
-  const rejectJob = (jobId: string) => {
+  const rejectJob = async (jobId: string) => {
     const job = activeJobs.find(j => j.id === jobId);
     if (!job) return;
     
@@ -182,8 +232,24 @@ export default function WorkerDashboard() {
     const confirmReject = confirm(`Sigur doriți să respingeți lucrarea #${jobId}?`);
     if (!confirmReject) return;
     
-    jobService.updateJobStatus(jobId, 'cancelled', 'worker1', user?.name || 'Worker', { reason });
-    alert(`Ați respins lucrarea #${jobId}. Motivul: ${reason}`);
+    try {
+      // Folosește API-ul REAL pentru respingere!
+      const updatedJob = { ...job, status: 'cancelled' as const, completionData: { reason } as any };
+      const response = await realApiService.updateJob(jobId, updatedJob);
+      
+      if (response.success) {
+        console.log('✅ Job rejected via REAL API:', jobId);
+        alert(`Ați respins lucrarea #${jobId}. Motivul: ${reason}`);
+        
+        // Refresh immediate pentru a vedea schimbarea
+        loadDashboardData();
+      } else {
+        alert('Eroare la respingerea lucrării. Încercați din nou.');
+      }
+    } catch (error) {
+      console.error('❌ Error rejecting job:', error);
+      alert('Eroare la respingerea lucrării. Încercați din nou.');
+    }
   };
 
   return (
