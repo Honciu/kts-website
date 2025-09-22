@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { JobStatus, JobPriority } from '@prisma/client'
 
 /**
  * POST /api/admin/create-test-job - Create a test job for workflow validation
@@ -18,8 +19,8 @@ export async function POST(request: NextRequest) {
       specialInstructions: 'Acesta este un job de test pentru verificarea funcționării sistemului. Se poate finaliza cu date mock.',
       assignedEmployeeId: 'cmfudasin0001v090qs1frclc', // Robert's ID
       assignedEmployeeName: 'Robert',
-      status: 'ASSIGNED',
-      priority: 'NORMAL',
+      status: JobStatus.ASSIGNED,
+      priority: JobPriority.NORMAL,
       createdById: 'admin1'
     };
 
