@@ -161,9 +161,10 @@ export default function CompleteJob() {
       };
 
       // Update job status to completed via REAL API
+      const newStatus: 'completed' | 'pending_approval' = completionData.paymentMethod === 'bank_transfer' ? 'pending_approval' : 'completed';
       const updatedJob = {
         ...currentJob,
-        status: completionData.paymentMethod === 'bank_transfer' ? 'pending_approval' : 'completed',
+        status: newStatus,
         completedAt: new Date().toISOString(),
         completionData: completionDataForApi
       };
