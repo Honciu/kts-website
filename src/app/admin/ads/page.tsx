@@ -67,11 +67,14 @@ export default function AdminAds() {
   const [editingData, setEditingData] = useState<WeeklyAdData | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   
+  // Get workers from API response - use real IDs
   const workers = [
     { id: 'cmfudasin0001v090qs1frclc', name: 'Robert' },
     { id: 'worker_arslan_001', name: 'Arslan' },
     { id: 'worker_norbert_001', name: 'Norbert' }
   ];
+  
+  const ADS_STORAGE_KEY = 'kts_ads_data';
   
   // Helper functions pentru săptămână
   const getWeekStart = (date: Date) => {
@@ -92,20 +95,71 @@ export default function AdminAds() {
     return `${start.getDate()}.${(start.getMonth() + 1).toString().padStart(2, '0')} - ${end.getDate()}.${(end.getMonth() + 1).toString().padStart(2, '0')}.${end.getFullYear()}`;
   };
   
-  const generateDailySpends = (weekStart: Date): DailyAdSpend[] => {
+  const generateDailySpends = (weekStart: Date, workerId: string, workerName: string): DailyAdSpend[] => {
+    // Try to load existing data first
+    const savedData = loadAdDataFromStorage();
+    const weekKey = weekStart.toISOString().split('T')[0];
+    const existingWeekData = savedData[workerId]?.[weekKey];
+    
     const days = [];
     for (let i = 0; i < 7; i++) {
       const date = new Date(weekStart);
       date.setDate(date.getDate() + i);
-      days.push({
-        date: date.toISOString().split('T')[0],
-        facebook: 0,
-        google: 0,
-        tiktok: 0,
+      const dateKey = date.toISOString().split('T')[0];
+      
+      // Use existing data if available, otherwise use default values
+      const existingDay = existingWeekData?.dailySpends?.find(d => d.date === dateKey);
+      const baseDaily = workerName === 'Robert' ? 70 : workerName === 'Arslan' ? 45 : 30;
+      
+      const dayData = existingDay || {
+        date: dateKey,
+        facebook: Math.round((baseDaily * 0.4) + (Math.random() * 20)),
+        google: Math.round((baseDaily * 0.4) + (Math.random() * 20)),
+        tiktok: Math.round((baseDaily * 0.2) + (Math.random() * 10)),
         total: 0
-      });
+      };
+      
+      dayData.total = dayData.facebook + dayData.google + dayData.tiktok;
+      days.push(dayData);
     }
     return days;
+  };
+  
+  const loadAdDataFromStorage = () => {
+    if (typeof window === 'undefined') return {};
+    try {
+      const stored = localStorage.getItem(ADS_STORAGE_KEY);
+      return stored ? JSON.parse(stored) : {};
+    } catch (error) {
+      console.error('❌ Error loading ad data from storage:', error);
+      return {};
+    }
+  };
+  
+  const saveAdDataToStorage = (data: WeeklyAdData[]) => {
+    if (typeof window === 'undefined') return;
+    try {
+      const savedData = loadAdDataFromStorage();
+      
+      data.forEach(workerData => {
+        const weekKey = getWeekStart(new Date(workerData.weekStart)).toISOString().split('T')[0];
+        
+        if (!savedData[workerData.workerId]) {
+          savedData[workerData.workerId] = {};
+        }
+        
+        savedData[workerData.workerId][weekKey] = {
+          dailySpends: workerData.dailySpends,
+          weeklyTotal: workerData.weeklyTotal,
+          lastUpdated: new Date().toISOString()
+        };
+      });
+      
+      localStorage.setItem(ADS_STORAGE_KEY, JSON.stringify(savedData));
+      console.log('💾 ADS: Data saved to localStorage');
+    } catch (error) {
+      console.error('❌ Error saving ad data to storage:', error);
+    }
   };
 
   const loadWeeklyAdData = async () => {
@@ -134,17 +188,8 @@ export default function AdminAds() {
           const revenue = completedJobs.reduce((total, job) => 
             total + (job.completionData?.totalAmount || 0), 0);
           
-          // Generate daily spends structure
-          const dailySpends = generateDailySpends(weekStart);
-          
-          // Mock some ad spend data for demonstration
-          const baseDaily = worker.name === 'Robert' ? 70 : worker.name === 'Arslan' ? 45 : 30;
-          dailySpends.forEach(day => {
-            day.facebook = Math.round((baseDaily * 0.4) + (Math.random() * 20));
-            day.google = Math.round((baseDaily * 0.4) + (Math.random() * 20));
-            day.tiktok = Math.round((baseDaily * 0.2) + (Math.random() * 10));
-            day.total = day.facebook + day.google + day.tiktok;
-          });
+          // Generate daily spends structure with persistence
+          const dailySpends = generateDailySpends(weekStart, worker.id, worker.name);
           
           const weeklyTotal = dailySpends.reduce((sum, day) => sum + day.total, 0);
           const profit = revenue - weeklyTotal;
@@ -230,15 +275,18 @@ export default function AdminAds() {
   const saveAdData = () => {
     if (!editingData) return;
     
-    setWeeklyAdData(prev => 
-      prev.map(data => 
-        data.workerId === editingData.workerId ? editingData : data
-      )
+    const updatedData = weeklyAdData.map(data => 
+      data.workerId === editingData.workerId ? editingData : data
     );
+    
+    setWeeklyAdData(updatedData);
+    
+    // Save to localStorage for persistence
+    saveAdDataToStorage(updatedData);
     
     setShowEditModal(false);
     setEditingData(null);
-    alert(`✅ Datele pentru ${editingData.workerName} au fost salvate!`);
+    alert(`✅ Datele pentru ${editingData.workerName} au fost salvate și persistate!`);
   };
 
   if (!user || user.type !== 'admin') {

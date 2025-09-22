@@ -48,11 +48,36 @@ export default function AdminDashboard() {
   const loadDashboardData = async () => {
     setLoading(true);
     try {
-      console.log('🏠 Dashboard: Loading REAL data from API...');
+      // FORCE clear any mock data first
+      if (typeof window !== 'undefined') {
+        const mockKeys = ['kts_jobs_data', 'kts_notifications_data', 'kts_worker_location', 'kts_sync_data', 'kts_api_cache', 'kts_local_jobs'];
+        mockKeys.forEach(key => localStorage.removeItem(key));
+        console.log('🧹 Dashboard: Cleared all mock data from localStorage');
+      }
+      
+      console.log('🏠 Dashboard: Loading REAL data ONLY from API...');
       const response = await realApiService.getJobs();
       
       if (response.success) {
         const allJobs = response.data;
+        
+        console.log('📋 Dashboard REAL DATA ANALYSIS:');
+        console.log('  • Total jobs from API:', allJobs.length);
+        console.log('  • Full job data:', allJobs.map(j => ({
+          id: j.id,
+          status: j.status,
+          clientName: j.clientName,
+          serviceName: j.serviceName,
+          createdAt: j.createdAt,
+          completedAt: j.completedAt
+        })));
+        
+        const completedJobs = allJobs.filter(j => j.status === 'completed');
+        const activeJobsCalc = allJobs.filter(j => !['completed', 'cancelled'].includes(j.status));
+        
+        console.log('  • Completed jobs:', completedJobs.length);
+        console.log('  • Active jobs calculated:', activeJobsCalc.length);
+        console.log('  • Active jobs details:', activeJobsCalc.map(j => `#${j.id}: ${j.status} - ${j.serviceName}`));
         
         // Calculate active jobs (not completed or cancelled)
         const activeJobs = allJobs.filter(job => 
@@ -76,6 +101,14 @@ export default function AdminDashboard() {
           return job.status === 'completed' && jobDate >= oneWeekAgo;
         });
         
+        console.log('📋 Weekly Jobs Calculation:');
+        console.log('  • Completed jobs this week:', weeklyJobs.length);
+        weeklyJobs.forEach(job => {
+          const total = job.completionData?.totalAmount || 0;
+          const commission = job.completionData?.workerCommission || 0;
+          console.log(`    - Job #${job.id}: ${total} RON total, ${commission} RON commission`);
+        });
+        
         const weeklyRevenue = weeklyJobs.reduce((total, job) => {
           return total + (job.completionData?.totalAmount || 0);
         }, 0);
@@ -85,6 +118,11 @@ export default function AdminDashboard() {
         }, 0);
         
         const weeklyProfit = weeklyRevenue - weeklyExpenses;
+        
+        console.log('💰 Financial Summary:');
+        console.log(`  • Weekly Revenue: ${weeklyRevenue} RON`);
+        console.log(`  • Weekly Expenses: ${weeklyExpenses} RON`);
+        console.log(`  • Weekly Profit: ${weeklyProfit} RON`);
         
         setDashboardStats({
           activeJobs,
