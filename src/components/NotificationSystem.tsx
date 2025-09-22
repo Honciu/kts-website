@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 interface NotificationData {
   id: string;
   type: 'job_assigned' | 'job_accepted' | 'job_rejected' | 'job_completed' | 'appointment_reminder';
+  title?: string;
   message: string;
   timestamp: string;
   read: boolean;
