@@ -101,6 +101,22 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Mapează valorile enum-urilor la formatul corect pentru Prisma
+    const statusMapping: Record<string, string> = {
+      'assigned': 'ASSIGNED',
+      'accepted': 'ACCEPTED', 
+      'in_progress': 'IN_PROGRESS',
+      'completed': 'COMPLETED',
+      'cancelled': 'CANCELLED',
+      'pending_approval': 'PENDING_APPROVAL'
+    }
+    
+    const priorityMapping: Record<string, string> = {
+      'normal': 'NORMAL',
+      'high': 'HIGH',
+      'urgent': 'URGENT'
+    }
+
     const job = await prisma.job.create({
       data: {
         clientName,
@@ -111,8 +127,8 @@ export async function POST(request: NextRequest) {
         specialInstructions,
         assignedEmployeeId,
         assignedEmployeeName,
-        status: status.toUpperCase() as any,
-        priority: priority.toUpperCase() as any,
+        status: statusMapping[status.toLowerCase()] as any || 'ASSIGNED',
+        priority: priorityMapping[priority.toLowerCase()] as any || 'NORMAL',
         createdById
       },
       include: {
