@@ -33,8 +33,8 @@ export default function CompletedJobs() {
   const router = useRouter();
 
   const [completedJobs, setCompletedJobs] = useState<Job[]>([]);
-
   const [selectedWeek, setSelectedWeek] = useState(new Date());
+  const [showAllTime, setShowAllTime] = useState(false);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [showJobModal, setShowJobModal] = useState(false);
 
@@ -49,13 +49,71 @@ export default function CompletedJobs() {
       try {
         const response = await realApiService.getJobs();
         if (response.success) {
-          // Filter completed jobs for current user
-          const userJobs = response.data.filter(job => 
-            job.assignedEmployeeId === user.id && 
+          const allJobs = response.data;
+          const workerId = user?.id || 'default-worker';
+          
+          console.log('📊 Worker Completed Jobs DEBUG - ENHANCED:');
+          console.log('  - User from session:', user);
+          console.log('  - Worker ID (user.id):', workerId);
+          console.log('  - Total jobs from API:', allJobs.length);
+          console.log('  - All jobs details:', allJobs.map(j => ({ 
+              id: j.id, 
+              assignedTo: j.assignedEmployeeId, 
+              assignedName: j.assignedEmployeeName,
+              status: j.status,
+              completedAt: j.completedAt
+            })));
+          
+          console.log('🎯 COMPLETED JOBS FILTERING ANALYSIS:');
+          console.log(`  - Looking for jobs assigned to: "${workerId}"`);
+          console.log('  - Available assigned IDs:', [...new Set(allJobs.map(j => j.assignedEmployeeId))]);
+          
+          // Filtră joburile pentru worker-ul curent
+          let workerJobs = allJobs.filter(job => job.assignedEmployeeId === workerId);
+          
+          console.log('🎯 COMPLETED JOBS FILTER RESULT:');
+          console.log(`  - Found ${workerJobs.length} jobs for worker ${workerId}`);
+          
+          // FALLBACK: Dacă nu găsește joburi cu ID-ul, încearcă cu numele
+          if (workerJobs.length === 0 && allJobs.length > 0 && user?.name) {
+            console.log('⚠️ COMPLETED JOBS: NO JOBS FOUND with ID! Trying fallback by name:');
+            console.log('  - User session ID:', user?.id);
+            console.log('  - Expected assignment ID in jobs:', allJobs[0]?.assignedEmployeeId);
+            console.log('  - User name:', user?.name);
+            
+            // Încearcă să găsească joburile după numele lucratorului
+            const fallbackJobs = allJobs.filter(job => 
+              job.assignedEmployeeName && user.name &&
+              job.assignedEmployeeName.toLowerCase().includes(user.name.toLowerCase())
+            );
+            
+            if (fallbackJobs.length > 0) {
+              console.log(`🎆 COMPLETED JOBS FALLBACK SUCCESS: Found ${fallbackJobs.length} jobs by name matching!`);
+              console.log('  - Fallback jobs:', fallbackJobs.map(j => `#${j.id} - ${j.serviceName} (${j.status})`));
+              workerJobs = fallbackJobs;
+            } else {
+              console.log('❌ COMPLETED JOBS FALLBACK FAILED: No jobs found by name either');
+              console.log('  - Available assigned names:', [...new Set(allJobs.map(j => j.assignedEmployeeName))]);
+            }
+          }
+          
+          // Filtrează doar joburile completed/pending_approval
+          const completedJobsOnly = workerJobs.filter(job => 
             ['completed', 'pending_approval'].includes(job.status)
           );
-          setCompletedJobs(userJobs);
-          console.log('✅ Worker Completed Jobs: Loaded', userJobs.length, 'completed jobs for', user.name);
+          
+          console.log('🏆 COMPLETED JOBS FINAL RESULT:');
+          console.log(`  - Found ${completedJobsOnly.length} completed jobs`);
+          console.log('  - Completed jobs details:', completedJobsOnly.map(j => ({
+            id: j.id,
+            service: j.serviceName,
+            status: j.status,
+            completedAt: j.completedAt,
+            commission: j.completionData?.workerCommission || 0
+          })));
+          
+          setCompletedJobs(completedJobsOnly);
+          console.log('✅ Worker Completed Jobs: Loaded', completedJobsOnly.length, 'completed jobs for', user.name);
         } else {
           console.error('❌ Worker Completed Jobs: API error:', response.error);
         }
@@ -99,15 +157,25 @@ export default function CompletedJobs() {
     return `${start.getDate()}.${(start.getMonth() + 1).toString().padStart(2, '0')} - ${end.getDate()}.${(end.getMonth() + 1).toString().padStart(2, '0')}.${end.getFullYear()}`;
   };
 
-  // Filtrează joburile pentru săptămâna selectată
+  // Filtrează joburile pentru săptămâna selectată sau toate timpurile
   const getJobsForWeek = (week: Date) => {
+    if (showAllTime) {
+      console.log('📅 COMPLETED JOBS: Showing ALL TIME jobs:', completedJobs.length);
+      return completedJobs;
+    }
+    
     const start = getWeekStart(week);
     const end = getWeekEnd(week);
     
-    return completedJobs.filter(job => {
+    const weekJobs = completedJobs.filter(job => {
       const completionDate = new Date(job.completedAt || job.createdAt);
-      return completionDate >= start && completionDate <= end;
+      const inRange = completionDate >= start && completionDate <= end;
+      console.log(`📅 Job ${job.id}: ${job.completedAt || job.createdAt} -> ${inRange ? 'IN WEEK' : 'OUT OF WEEK'}`);
+      return inRange;
     });
+    
+    console.log('📅 COMPLETED JOBS: Week filter result:', weekJobs.length, 'jobs in selected week');
+    return weekJobs;
   };
 
   const weekJobs = getJobsForWeek(selectedWeek);
@@ -213,31 +281,53 @@ ${job.completionData?.notes ? `Note: ${job.completionData.notes}` : ''}`
               <button
                 onClick={() => navigateWeek('prev')}
                 className="p-2 rounded-lg transition-colors"
-                style={{ backgroundColor: Colors.surfaceLight }}
+                style={{ 
+                  backgroundColor: Colors.surfaceLight,
+                  opacity: showAllTime ? 0.5 : 1
+                }}
+                disabled={showAllTime}
               >
                 <ChevronLeft size={20} color={Colors.textSecondary} />
               </button>
               
               <div className="text-center">
                 <h2 className="text-lg font-bold" style={{ color: Colors.text }}>
-                  Săptămâna {formatWeekRange(selectedWeek)}
+                  {showAllTime ? 'Toate Joburile Finalizate' : `Săptămâna ${formatWeekRange(selectedWeek)}`}
                 </h2>
-                <button
-                  onClick={goToCurrentWeek}
-                  className="text-sm mt-1 px-3 py-1 rounded-lg transition-colors"
-                  style={{ 
-                    backgroundColor: Colors.secondary,
-                    color: Colors.background
-                  }}
-                >
-                  Săptămâna curentă
-                </button>
+                <div className="flex items-center justify-center gap-2 mt-2">
+                  <button
+                    onClick={goToCurrentWeek}
+                    className="text-xs px-2 py-1 rounded-lg transition-colors"
+                    style={{ 
+                      backgroundColor: Colors.secondary,
+                      color: Colors.background
+                    }}
+                    disabled={showAllTime}
+                  >
+                    Săptămâna curentă
+                  </button>
+                  <button
+                    onClick={() => setShowAllTime(!showAllTime)}
+                    className="text-xs px-2 py-1 rounded-lg transition-colors border"
+                    style={{
+                      backgroundColor: showAllTime ? Colors.success : 'transparent',
+                      borderColor: showAllTime ? Colors.success : Colors.border,
+                      color: showAllTime ? Colors.background : Colors.text
+                    }}
+                  >
+                    {showAllTime ? '✅ Toate' : '📅 Toate Timpurile'}
+                  </button>
+                </div>
               </div>
 
               <button
                 onClick={() => navigateWeek('next')}
                 className="p-2 rounded-lg transition-colors"
-                style={{ backgroundColor: Colors.surfaceLight }}
+                style={{ 
+                  backgroundColor: Colors.surfaceLight,
+                  opacity: showAllTime ? 0.5 : 1
+                }}
+                disabled={showAllTime}
               >
                 <ChevronRight size={20} color={Colors.textSecondary} />
               </button>
@@ -329,7 +419,7 @@ ${job.completionData?.notes ? `Note: ${job.completionData.notes}` : ''}`
           >
             <div className="p-6 border-b" style={{ borderColor: Colors.border }}>
               <h3 className="text-lg font-semibold" style={{ color: Colors.text }}>
-                Joburi din această săptămână ({weekJobs.length})
+                {showAllTime ? `Toate joburile finalizate (${weekJobs.length})` : `Joburi din această săptămână (${weekJobs.length})`}
               </h3>
             </div>
 
