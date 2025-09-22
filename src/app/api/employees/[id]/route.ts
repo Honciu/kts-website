@@ -95,7 +95,7 @@ export async function PUT(
         ...(email && { email }),
         ...(phone !== undefined && { phone }),
         ...(isActive !== undefined && { isActive }),
-        ...(salaryPercentage !== undefined && { salaryPercentage }),
+        // ...(salaryPercentage !== undefined && { salaryPercentage }), // TODO: Add after migration
         updatedAt: new Date()
       },
       select: {
@@ -105,7 +105,7 @@ export async function PUT(
         phone: true,
         isActive: true,
         type: true,
-        salaryPercentage: true,
+        // salaryPercentage: true, // TODO: Add after migration
         createdAt: true,
         updatedAt: true
       }

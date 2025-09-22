@@ -24,7 +24,6 @@ export async function GET() {
         phone: true,
         isActive: true,
         type: true,
-        salaryPercentage: true,
         createdAt: true,
         updatedAt: true
       },
@@ -102,7 +101,7 @@ export async function POST(request: NextRequest) {
         phone: phone || null,
         password: hashedPassword,
         type: type || 'WORKER',
-        salaryPercentage: salaryPercentage || 30,
+        // salaryPercentage: salaryPercentage || 30, // TODO: Add after database migration
         isActive: isActive !== undefined ? isActive : true
       },
       select: {
@@ -112,7 +111,7 @@ export async function POST(request: NextRequest) {
         phone: true,
         isActive: true,
         type: true,
-        salaryPercentage: true,
+        // salaryPercentage: true, // TODO: Add after database migration
         createdAt: true,
         updatedAt: true
       }

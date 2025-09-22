@@ -167,7 +167,7 @@ export default function NewEmployeesPage() {
                 name: worker.name,
                 email: worker.email,
                 phone: worker.phone,
-                salaryPercentage: worker.salaryPercentage || 30,
+                salaryPercentage: worker.salaryPercentage || 30, // Default 30% if not set
                 isActive: worker.isActive,
                 type: worker.type,
                 weeklyStats,
