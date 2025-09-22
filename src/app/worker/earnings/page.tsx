@@ -58,10 +58,9 @@ export default function WorkerEarnings() {
         
         if (apiResponse.success) {
           const allJobs = apiResponse.data;
-          const workerId = 'cmfudasin0001v090qs1frclc'; // Force Robert's ID from seed data
           
           // Filtrează joburile pentru worker-ul curent
-          const workerJobs = allJobs.filter(job => job.assignedEmployeeId === workerId);
+          const workerJobs = allJobs.filter(job => job.assignedEmployeeId === user.id);
           
           // Calculeză săptămâna selectată
           const weekStart = getWeekStart(selectedWeek);

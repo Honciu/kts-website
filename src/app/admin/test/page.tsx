@@ -7,6 +7,7 @@ import { Colors } from '@/constants/colors';
 import AdminLayout from '@/components/AdminLayout';
 import { jobService, type Job } from '@/utils/jobService';
 import { realtimeSync } from '@/utils/realtimeSync';
+import { clearAllMockData, checkMockDataStatus } from '@/utils/clearMockData';
 import { 
   TestTube,
   Plus,
@@ -126,6 +127,36 @@ export default function AdminTest() {
   const clearTestLog = () => {
     setTestLog([]);
     addToLog('📝 Test log cleared');
+  };
+  
+  const clearMockData = () => {
+    const status = checkMockDataStatus();
+    
+    if (status.totalEntries === 0) {
+      alert('ℹ️ No mock data found to clear!\n\nOnly REAL API data is being used.');
+      addToLog('ℹ️ No mock data found to clear');
+      return;
+    }
+    
+    const confirmed = confirm(
+      `🧹 Clear ALL mock data?\n\n` +
+      `Found ${status.totalEntries} mock data entries:\n` +
+      `${status.keys.join(', ')}\n\n` +
+      `This will force the app to use ONLY real API data from Prisma database.\n\n` +
+      `Continue?`
+    );
+    
+    if (confirmed) {
+      const result = clearAllMockData();
+      const message = `🧹 Cleared ${result.cleared} mock data entries - app will now use ONLY real API data`;
+      addToLog(message);
+      alert(`✅ Mock data cleared!\n\n${result.cleared} entries removed.\n\nThe app will now refresh and use ONLY real API data.`);
+      
+      // Force refresh after clearing
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    }
   };
 
   if (!user || user.type !== 'admin') {
@@ -255,6 +286,18 @@ export default function AdminTest() {
               <CheckCircle size={20} />
               Simulează Acceptare Job
             </button>
+            
+            <button
+              onClick={clearMockData}
+              className="flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors border"
+              style={{
+                borderColor: Colors.error,
+                color: Colors.error,
+              }}
+            >
+              🧹
+              Cureaxă Date Mock
+            </button>
           </div>
 
           <div className="mt-4 p-4 rounded-lg" style={{ backgroundColor: Colors.surfaceLight }}>
@@ -262,8 +305,9 @@ export default function AdminTest() {
               💡 <strong>Instrucțiuni:</strong>
             </p>
             <ul className="text-sm mt-2 space-y-1" style={{ color: Colors.textSecondary }}>
+              <li>• <strong>Prima dată:</strong> Apasă "Cureaxă Date Mock" pentru a folosi doar date reale din API</li>
               <li>• Deschide dashboard-ul lucrătorului într-un alt tab sau browser</li>
-              <li>• Creează un job de test și verifică dacă apare imediat la lucrător</li>
+              <li>• Crează un job de test și verifică dacă apare imediat la lucrător</li>
               <li>• Testează notificările și actualizările în timp real</li>
               <li>• Folosește "Actualizează Toate Tab-urile" pentru sincronizare forțată</li>
             </ul>
