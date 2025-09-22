@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Colors } from '@/constants/colors';
 import NotificationSystem from './NotificationSystem';
+import { useLocationNotifications } from '@/hooks/useLocationNotifications';
 import { 
   Wrench, 
   User, 
@@ -30,8 +31,80 @@ export default function WorkerLayout({ children, currentPage, pageTitle }: Worke
   const { user, logout } = useAuth();
   const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  
+  // Serviciu pentru locație și notificări
+  const {
+    isInitialized,
+    isMobile,
+    hasLocationPermission,
+    hasNotificationPermission,
+    initializeService,
+    requestPermissions,
+    showNotification,
+    cleanup
+  } = useLocationNotifications();
+
+  // Inițializează serviciul la mount
+  useEffect(() => {
+    if (user && user.type === 'worker') {
+      console.log('🚀 WorkerLayout: Initializing location and notification services...');
+      initializeService();
+    }
+
+    // Cleanup la unmount
+    return () => {
+      cleanup();
+    };
+  }, [user, initializeService, cleanup]);
+
+  // Simulează notificări pentru joburi noi (pentru testare)
+  useEffect(() => {
+    if (isInitialized && hasNotificationPermission) {
+      const notifications = [
+        {
+          delay: 10000, // 10 secunde
+          data: {
+            title: '🔧 Job nou disponibil!',
+            message: 'Deblocare ușă în Sector 1 - Str. Aviatorilor nr. 15',
+            type: 'job_assigned' as const,
+            jobId: 'job_001',
+            urgent: true
+          }
+        },
+        {
+          delay: 25000, // 25 secunde
+          data: {
+            title: '📅 Programări noi!',
+            message: 'Ai 2 programări noi pentru mâine. Verifică calendarul.',
+            type: 'appointment_scheduled' as const,
+            urgent: false
+          }
+        },
+        {
+          delay: 45000, // 45 secunde
+          data: {
+            title: '⚡ Job urgent!',
+            message: 'Schimbare yală urgentă - Bd. Unirii nr. 89. Client așteaptă!',
+            type: 'job_assigned' as const,
+            jobId: 'job_002',
+            urgent: true
+          }
+        }
+      ];
+
+      const timers = notifications.map(({ delay, data }) => 
+        setTimeout(() => {
+          console.log('🧪 Sending test notification:', data.title);
+          showNotification(data);
+        }, delay)
+      );
+
+      return () => timers.forEach(clearTimeout);
+    }
+  }, [isInitialized, hasNotificationPermission, showNotification]);
 
   const handleLogout = async () => {
+    cleanup(); // Curăță serviciile înainte de logout
     await logout();
     router.replace('/');
   };
@@ -137,15 +210,56 @@ export default function WorkerLayout({ children, currentPage, pageTitle }: Worke
               </div>
             </div>
             <div className="flex items-center gap-2 md:gap-4">
+              {/* Mobile Status Indicators */}
+              {isMobile && (
+                <div className="flex items-center gap-2">
+                  {/* Location Status */}
+                  <div 
+                    className="w-3 h-3 rounded-full" 
+                    style={{ 
+                      backgroundColor: hasLocationPermission ? Colors.success : Colors.error 
+                    }}
+                    title={hasLocationPermission ? 'Locația este activă' : 'Locația nu este disponibilă'}
+                  />
+                  {/* Notification Status */}
+                  <div 
+                    className="w-3 h-3 rounded-full" 
+                    style={{ 
+                      backgroundColor: hasNotificationPermission ? Colors.success : Colors.warning 
+                    }}
+                    title={hasNotificationPermission ? 'Notificările sunt active' : 'Notificările nu sunt activate'}
+                  />
+                </div>
+              )}
+              
               <div className="text-right hidden sm:block">
                 <p className="font-medium text-sm md:text-base" style={{ color: Colors.text }}>
                   {user?.name}
                 </p>
                 <p className="text-xs md:text-sm" style={{ color: Colors.textSecondary }}>
                   Lucrător Activ
+                  {/* Desktop Status */}
+                  {isMobile && (
+                    <span className="ml-2">
+                      📍{hasLocationPermission ? '✅' : '❌'} 🔔{hasNotificationPermission ? '✅' : '❌'}
+                    </span>
+                  )}
                 </p>
               </div>
               <NotificationSystem />
+              
+              {/* Buton pentru permisiuni (doar pe mobil și dacă nu sunt acordate) */}
+              {isMobile && (!hasLocationPermission || !hasNotificationPermission) && (
+                <button
+                  onClick={requestPermissions}
+                  className="p-2 rounded-lg transition-colors"
+                  style={{ backgroundColor: Colors.warning }}
+                  title="Activează locația și notificările"
+                >
+                  <span className="text-white text-sm">⚙️</span>
+                </button>
+              )}
+              
               <button
                 onClick={handleLogout}
                 className="p-2 rounded-lg hover:bg-opacity-80 transition-colors"
