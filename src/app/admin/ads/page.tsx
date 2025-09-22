@@ -108,7 +108,7 @@ export default function AdminAds() {
       const dateKey = date.toISOString().split('T')[0];
       
       // Use existing data if available, otherwise use default values
-      const existingDay = existingWeekData?.dailySpends?.find(d => d.date === dateKey);
+      const existingDay = existingWeekData?.dailySpends?.find((d: DailyAdSpend) => d.date === dateKey);
       const baseDaily = workerName === 'Robert' ? 70 : workerName === 'Arslan' ? 45 : 30;
       
       const dayData = existingDay || {
