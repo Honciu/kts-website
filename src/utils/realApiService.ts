@@ -108,8 +108,19 @@ class RealAPIService {
       }
 
       const data = await response.json();
-      console.log('🌐 RealAPI: Success! Created job:', data.data?.id);
-      console.log('🌐 RealAPI: Full response:', data);
+      console.log('✅ RealAPI: Success! Created job:', data.data?.id);
+      console.log('✅ RealAPI: Full response:', data);
+      
+      // Immediately notify all listeners about the new job
+      console.log('📢 RealAPI: Immediately broadcasting new job to', this.listeners.size, 'listeners');
+      this.listeners.forEach((callback, listenerId) => {
+        try {
+          console.log('  - Notifying listener:', listenerId);
+          callback(true);
+        } catch (error) {
+          console.error('❌ Error notifying listener', listenerId, error);
+        }
+      });
       
       return data;
     } catch (error) {
@@ -161,6 +172,17 @@ class RealAPIService {
       console.log('  - Updated job ID:', jobId);
       console.log('  - New status:', data.data?.status);
       console.log('  - Completion data:', data.data?.completionData);
+      
+      // Immediately notify all listeners about the change
+      console.log('📢 RealAPI: Immediately broadcasting job update to', this.listeners.size, 'listeners');
+      this.listeners.forEach((callback, listenerId) => {
+        try {
+          console.log('  - Notifying listener:', listenerId);
+          callback(true);
+        } catch (error) {
+          console.error('❌ Error notifying listener', listenerId, error);
+        }
+      });
       
       return data;
     } catch (error) {
