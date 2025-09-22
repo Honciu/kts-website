@@ -5,33 +5,50 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Colors } from '@/constants/colors';
 import AdminLayout from '@/components/AdminLayout';
-import { jobService, type Job } from '@/utils/jobService';
+import { Job } from '@/utils/jobService';
 import { realApiService } from '@/utils/realApiService';
-import '@/utils/debugUtils'; // Load debugging utilities
-import {
-  MapPin,
-  User,
-  CheckCircle,
-  AlertCircle,
+import { 
   Plus,
-  Edit,
-  Trash2,
-  RefreshCw,
   Clock,
+  User,
+  Phone,
+  MapPin,
+  AlertTriangle,
+  CheckCircle,
+  Edit2,
+  Trash2,
+  RotateCcw,
   X,
-  Image,
-  Eye
+  Camera,
+  Calendar,
+  Filter
 } from 'lucide-react';
+
+type JobTab = 'past' | 'current' | 'future';
+
+interface EditForm {
+  clientName: string;
+  clientPhone: string;
+  address: string;
+  serviceName: string;
+  serviceDescription: string;
+  specialInstructions: string;
+  assignedEmployeeId: string;
+  assignedEmployeeName: string;
+  priority: Job['priority'];
+}
 
 export default function AdminJobs() {
   const { user } = useAuth();
   const router = useRouter();
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<JobTab>('current');
   const [editingJob, setEditingJob] = useState<Job | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPhotosModal, setShowPhotosModal] = useState(false);
-  const [selectedJobPhotos, setSelectedJobPhotos] = useState<{job: Job, photos: string[]}>({job: {} as Job, photos: []});
-  const [editForm, setEditForm] = useState({
+  const [selectedJobPhotos, setSelectedJobPhotos] = useState<{ job: Job; photos: string[] }>({ job: {} as Job, photos: [] });
+  const [editForm, setEditForm] = useState<EditForm>({
     clientName: '',
     clientPhone: '',
     address: '',
@@ -40,14 +57,63 @@ export default function AdminJobs() {
     specialInstructions: '',
     assignedEmployeeId: '',
     assignedEmployeeName: '',
-    priority: 'normal' as Job['priority']
+    priority: 'normal'
   });
 
   const availableWorkers = [
-    { id: 'worker1', name: 'Robert' },
-    { id: 'worker2', name: 'Demo User' },
-    { id: 'worker3', name: 'Lacatus 01' }
+    { id: 'cmfudasin0001v090qs1frclc', name: 'Robert' },
+    { id: 'cmfudasm70002v090fuu57u5k', name: 'Demo User' },
+    { id: 'cmfudaspq0003v09023ejiha2', name: 'Lacatus 01' }
   ];
+
+  // Filter jobs by tab with proper date handling
+  const getFilteredJobs = () => {
+    switch (activeTab) {
+      case 'past':
+        return jobs.filter(job => 
+          ['completed', 'cancelled'].includes(job.status)
+        ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        
+      case 'current':
+        return jobs.filter(job => 
+          ['assigned', 'accepted', 'in_progress', 'pending_approval'].includes(job.status)
+        ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        
+      case 'future':
+        // For now, this will be empty but can be used for scheduled jobs
+        return jobs.filter(job => {
+          const jobDate = new Date(job.createdAt);
+          const tomorrow = new Date();
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          tomorrow.setHours(0, 0, 0, 0);
+          return jobDate >= tomorrow;
+        }).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        
+      default:
+        return [];
+    }
+  };
+
+  const loadJobs = async () => {
+    setLoading(true);
+    try {
+      console.log('🏢 Admin Jobs: Loading jobs via REAL API...');
+      const response = await realApiService.getJobs();
+      
+      if (response.success) {
+        console.log('✅ Admin Jobs: REAL API success - received', response.data.length, 'jobs');
+        setJobs(response.data);
+      } else {
+        console.error('❌ Admin Jobs: REAL API failed, error:', response.error);
+        setJobs([]);
+      }
+    } catch (error) {
+      console.error('❌ Admin Jobs: Error loading jobs:', error);
+      setJobs([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!user || user.type !== 'admin') {
@@ -55,25 +121,9 @@ export default function AdminJobs() {
       return;
     }
     
-    // Load jobs from REAL API
-    const loadJobs = async () => {
-      try {
-        const apiResponse = await realApiService.getJobs();
-        
-        if (apiResponse.success) {
-          setJobs(apiResponse.data);
-          console.log('✅ Admin Jobs: Loaded', apiResponse.data.length, 'jobs from REAL API');
-        } else {
-          console.error('❌ Admin Jobs: API error:', apiResponse);
-        }
-      } catch (error) {
-        console.error('❌ Admin Jobs: Error loading from API:', error);
-      }
-    };
-    
     loadJobs();
     
-    // Add REAL API listener for real-time updates!
+    // Add REAL API listener for real-time updates
     realApiService.addChangeListener('admin-jobs-real', (hasChanges) => {
       if (hasChanges) {
         console.log('📋 Admin Jobs: REAL API changes detected - syncing!');
@@ -81,36 +131,11 @@ export default function AdminJobs() {
       }
     });
     
-    // Keep old listeners as backup
-    jobService.addListener('admin-jobs-backup', {
-      onJobUpdate: (job, update) => {
-        console.log('📋 Admin Jobs: Backup job update received', job.id);
-        loadJobs();
-      },
-      onJobComplete: (job) => {
-        console.log('👏 Admin Jobs: Backup job completed', job.id);
-        loadJobs();
-      },
-      onJobStatusChange: (jobId, oldStatus, newStatus) => {
-        console.log('🔄 Admin Jobs: Backup status change', jobId, `${oldStatus} -> ${newStatus}`);
-        loadJobs();
-      }
-    });
-    
     return () => {
-      console.log('🧹 Admin Jobs: Cleaning up ALL listeners including REAL API');
+      console.log('🧹 Admin Jobs: Cleaning up listeners');
       realApiService.removeChangeListener('admin-jobs-real');
-      jobService.removeListener('admin-jobs-backup');
     };
   }, [user, router]);
-
-  if (!user || user.type !== 'admin') {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: Colors.background }}>
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: Colors.secondary }}></div>
-      </div>
-    );
-  }
 
   const addJob = () => {
     router.push('/admin/jobs/add');
@@ -132,60 +157,90 @@ export default function AdminJobs() {
     setShowEditModal(true);
   };
 
-  const saveJobEdit = () => {
+  const saveJobEdit = async () => {
     if (!editingJob) return;
     
-    const updatedJob: Job = {
-      ...editingJob,
-      clientName: editForm.clientName,
-      clientPhone: editForm.clientPhone,
-      address: editForm.address,
-      serviceName: editForm.serviceName,
-      serviceDescription: editForm.serviceDescription,
-      specialInstructions: editForm.specialInstructions,
-      assignedEmployeeId: editForm.assignedEmployeeId,
-      assignedEmployeeName: editForm.assignedEmployeeName,
-      priority: editForm.priority
-    };
-    
-    // Update job in service
-    jobService.updateJob(editingJob.id, updatedJob);
-    
-    setShowEditModal(false);
-    setEditingJob(null);
-    alert(`Lucrarea #${editingJob.id} a fost actualizată!`);
+    try {
+      const updates = {
+        clientName: editForm.clientName,
+        clientPhone: editForm.clientPhone,
+        address: editForm.address,
+        serviceName: editForm.serviceName,
+        serviceDescription: editForm.serviceDescription,
+        specialInstructions: editForm.specialInstructions,
+        assignedEmployeeId: editForm.assignedEmployeeId,
+        assignedEmployeeName: editForm.assignedEmployeeName,
+        priority: editForm.priority
+      };
+      
+      const response = await realApiService.updateJob(editingJob.id, updates);
+      
+      if (response.success) {
+        setShowEditModal(false);
+        setEditingJob(null);
+        await loadJobs(); // Refresh data
+        alert(`✅ Lucrarea #${editingJob.id} a fost actualizată!`);
+      } else {
+        alert(`❌ Eroare la actualizare: ${response.error}`);
+      }
+    } catch (error) {
+      console.error('Error updating job:', error);
+      alert('❌ A apărut o eroare la actualizare.');
+    }
   };
 
-  const reassignJob = (jobId: string, newWorkerId: string, newWorkerName: string) => {
+  const reassignJob = async (jobId: string, newWorkerId: string, newWorkerName: string) => {
     const job = jobs.find(j => j.id === jobId);
     if (!job) return;
     
     const confirmReassign = confirm(`Reatribuiți lucrarea #${jobId} către ${newWorkerName}?`);
     if (!confirmReassign) return;
     
-    const updatedJob: Job = {
-      ...job,
-      assignedEmployeeId: newWorkerId,
-      assignedEmployeeName: newWorkerName,
-      status: 'assigned'
-    };
-    
-    jobService.updateJob(jobId, updatedJob);
-    alert(`Lucrarea #${jobId} a fost reatribuită către ${newWorkerName}!`);
+    try {
+      const response = await realApiService.updateJob(jobId, {
+        assignedEmployeeId: newWorkerId,
+        assignedEmployeeName: newWorkerName,
+        status: 'assigned'
+      });
+      
+      if (response.success) {
+        await loadJobs(); // Refresh data
+        alert(`✅ Lucrarea #${jobId} a fost reatribuită către ${newWorkerName}!`);
+      } else {
+        alert(`❌ Eroare la reatribuire: ${response.error}`);
+      }
+    } catch (error) {
+      console.error('Error reassigning job:', error);
+      alert('❌ A apărut o eroare la reatribuire.');
+    }
   };
 
-  const markJobCompleted = (jobId: string) => {
+  const markJobCompleted = async (jobId: string) => {
     const job = jobs.find(j => j.id === jobId);
     if (!job) return;
     
     const confirmComplete = confirm(`Sigur a fost finalizată lucrarea #${jobId} pentru ${job.clientName}?`);
     if (!confirmComplete) return;
     
-    jobService.updateJobStatus(jobId, 'completed', 'admin1', user?.name || 'Admin');
-    alert(`Lucrarea #${jobId} a fost marcată ca finalizată!`);
+    try {
+      const response = await realApiService.updateJob(jobId, {
+        status: 'completed',
+        completedAt: new Date().toISOString()
+      });
+      
+      if (response.success) {
+        await loadJobs(); // Refresh data
+        alert(`✅ Lucrarea #${jobId} a fost marcată ca finalizată!`);
+      } else {
+        alert(`❌ Eroare la finalizare: ${response.error}`);
+      }
+    } catch (error) {
+      console.error('Error completing job:', error);
+      alert('❌ A apărut o eroare la finalizare.');
+    }
   };
 
-  const cancelJob = (jobId: string) => {
+  const cancelJob = async (jobId: string) => {
     const job = jobs.find(j => j.id === jobId);
     if (!job) return;
     
@@ -195,25 +250,49 @@ export default function AdminJobs() {
     const confirmCancel = confirm(`Sigur doriți să anulați lucrarea #${jobId}?`);
     if (!confirmCancel) return;
     
-    jobService.updateJobStatus(jobId, 'cancelled', 'admin1', user?.name || 'Admin', { reason });
-    alert(`Lucrarea #${jobId} a fost anulată. Motiv: ${reason}`);
+    try {
+      const response = await realApiService.updateJob(jobId, {
+        status: 'cancelled'
+      });
+      
+      if (response.success) {
+        await loadJobs(); // Refresh data
+        alert(`✅ Lucrarea #${jobId} a fost anulată. Motiv: ${reason}`);
+      } else {
+        alert(`❌ Eroare la anulare: ${response.error}`);
+      }
+    } catch (error) {
+      console.error('Error cancelling job:', error);
+      alert('❌ A apărut o eroare la anulare.');
+    }
   };
 
-  const deleteJob = (jobId: string) => {
+  const deleteJob = async (jobId: string) => {
     const job = jobs.find(j => j.id === jobId);
     if (!job) return;
     
     const confirmDelete = confirm(`ATENȚIE: Sigur doriți să ștergeți definitiv lucrarea #${jobId} pentru ${job.clientName}?\nAceastă acțiune nu poate fi anulată!`);
     if (!confirmDelete) return;
     
-    jobService.deleteJob(jobId);
-    alert(`Lucrarea #${jobId} a fost ștearsă definitiv!`);
+    try {
+      const response = await realApiService.deleteJob(jobId);
+      
+      if (response.success) {
+        await loadJobs(); // Refresh data
+        alert(`✅ Lucrarea #${jobId} a fost ștearsă definitiv!`);
+      } else {
+        alert(`❌ Eroare la ștergere: ${response.error}`);
+      }
+    } catch (error) {
+      console.error('Error deleting job:', error);
+      alert('❌ A apărut o eroare la ștergere.');
+    }
   };
 
   const viewJobPhotos = (job: Job) => {
     const photos = job.completionData?.photos || [];
     if (photos.length === 0) {
-      alert('Această lucrare nu are poze uploaded.');
+      alert('Această lucrare nu are poze uploadate.');
       return;
     }
     
@@ -221,482 +300,631 @@ export default function AdminJobs() {
     setShowPhotosModal(true);
   };
 
+  const formatDateTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('ro-RO', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'assigned': return Colors.info;
+      case 'accepted': return Colors.warning;
+      case 'in_progress': return Colors.secondary;
+      case 'completed': return Colors.success;
+      case 'cancelled': return Colors.error;
+      case 'pending_approval': return Colors.warning;
+      default: return Colors.textSecondary;
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'assigned': return 'Atribuit';
+      case 'accepted': return 'Acceptat';
+      case 'in_progress': return 'În progres';
+      case 'completed': return 'Finalizat';
+      case 'cancelled': return 'Anulat';
+      case 'pending_approval': return 'Aprobare necesară';
+      default: return status;
+    }
+  };
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'urgent': return Colors.error;
+      case 'high': return Colors.warning;
+      default: return Colors.textSecondary;
+    }
+  };
+
+  const getTabCount = (tab: JobTab) => {
+    const filtered = jobs.filter(job => {
+      switch (tab) {
+        case 'past':
+          return ['completed', 'cancelled'].includes(job.status);
+        case 'current':
+          return ['assigned', 'accepted', 'in_progress', 'pending_approval'].includes(job.status);
+        case 'future':
+          const tomorrow = new Date();
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          tomorrow.setHours(0, 0, 0, 0);
+          return new Date(job.createdAt) >= tomorrow;
+        default:
+          return false;
+      }
+    });
+    return filtered.length;
+  };
+
+  if (!user || user.type !== 'admin') {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: Colors.background }}>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: Colors.secondary }}></div>
+      </div>
+    );
+  }
+
+  const filteredJobs = getFilteredJobs();
+
   return (
     <AdminLayout currentPage="/admin/jobs" pageTitle="Gestionare Lucrări">
-          <div className="space-y-6">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <h2 className="text-xl md:text-2xl font-bold mb-2" style={{ color: Colors.text }}>
-                  Gestionare Lucrări
-                </h2>
-                <p className="text-sm md:text-base" style={{ color: Colors.textSecondary }}>
-                  Administrează lucrările active, atribuie angajați și finalizează comenzi.
-                </p>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-xl md:text-2xl font-bold mb-2" style={{ color: Colors.text }}>
+              Gestionare Lucrări
+            </h2>
+            <p className="text-sm md:text-base" style={{ color: Colors.textSecondary }}>
+              Administrează lucrările, atribuie angajați și monitorizează statusul în timp real.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => loadJobs()}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors"
+              style={{
+                backgroundColor: Colors.info,
+                color: Colors.background,
+              }}
+              disabled={loading}
+            >
+              <RotateCcw size={16} />
+              {loading ? 'Se încarcă...' : 'Refresh'}
+            </button>
+            <button
+              onClick={addJob}
+              className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors"
+              style={{
+                backgroundColor: Colors.secondary,
+                color: Colors.background,
+              }}
+            >
+              <Plus size={20} />
+              Adăugă Lucrare
+            </button>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="border-b" style={{ borderColor: Colors.border }}>
+          <nav className="-mb-px flex space-x-8">
+            {[
+              { key: 'current' as JobTab, label: 'Joburi Actuale', icon: Clock },
+              { key: 'past' as JobTab, label: 'Istoric Joburi', icon: CheckCircle },
+              { key: 'future' as JobTab, label: 'Joburi Programate', icon: Calendar }
+            ].map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                onClick={() => setActiveTab(key)}
+                className={`flex items-center gap-2 py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === key 
+                    ? 'border-current' 
+                    : 'border-transparent hover:border-gray-300'
+                }`}
+                style={{
+                  color: activeTab === key ? Colors.secondary : Colors.textSecondary,
+                  borderColor: activeTab === key ? Colors.secondary : 'transparent'
+                }}
+              >
+                <Icon size={16} />
+                {label} ({getTabCount(key)})
+              </button>
+            ))}
+          </nav>
+        </div>
+
+        {/* Jobs List */}
+        <div
+          className="rounded-lg border"
+          style={{
+            backgroundColor: Colors.surface,
+            borderColor: Colors.border,
+          }}
+        >
+          <div className="p-6 border-b" style={{ borderColor: Colors.border }}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold" style={{ color: Colors.text }}>
+                {activeTab === 'current' && 'Lucrări Curente'}
+                {activeTab === 'past' && 'Istoric Lucrări'}
+                {activeTab === 'future' && 'Lucrări Programate'}
+                {filteredJobs.length > 0 && (
+                  <span className="text-sm font-normal ml-2" style={{ color: Colors.textSecondary }}>
+                    ({filteredJobs.length} {filteredJobs.length === 1 ? 'lucrare' : 'lucrări'})
+                  </span>
+                )}
+              </h3>
+              <div className="flex items-center gap-2">
+                <Filter size={16} color={Colors.textSecondary} />
+                <span className="text-sm" style={{ color: Colors.textSecondary }}>
+                  Sortate: cele mai noi prima
+                </span>
               </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    const testJob: Omit<Job, 'id' | 'createdAt'> = {
-                      clientName: `CROSS-BROWSER Test ${Date.now()}`,
-                      clientPhone: '+40700000000',
-                      address: `Str. Cross-Browser nr. ${Math.floor(Math.random() * 100)}, București`,
-                      serviceName: '🌍 Test Cross-Browser Sync',
-                      serviceDescription: 'Job de test pentru verificarea sincronizării între browsere diferite. Deschide alt browser pentru test!',
-                      assignedEmployeeId: 'worker1',
-                      assignedEmployeeName: 'Robert',
-                      status: 'assigned',
-                      priority: 'urgent'
-                    };
-                    
-                    const createdJob = jobService.addJob(testJob);
-                    alert(`🌍 CROSS-BROWSER Test job #${createdJob.id} creat!\n\n🔥 DESCHIDE ALT BROWSER și intră pe același site!\n\nJob-ul ar trebui să apară în 2-4 secunde în orice browser!`);
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors"
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="p-8 text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 mx-auto mb-4" style={{ borderColor: Colors.secondary }}></div>
+              <p style={{ color: Colors.textSecondary }}>Se încarcă lucrările...</p>
+            </div>
+          ) : filteredJobs.length === 0 ? (
+            <div className="p-8 text-center">
+              <div className="mb-4">
+                {activeTab === 'current' && <Clock size={48} color={Colors.textMuted} className="mx-auto" />}
+                {activeTab === 'past' && <CheckCircle size={48} color={Colors.textMuted} className="mx-auto" />}
+                {activeTab === 'future' && <Calendar size={48} color={Colors.textMuted} className="mx-auto" />}
+              </div>
+              <p className="text-lg font-medium mb-2" style={{ color: Colors.text }}>
+                {activeTab === 'current' && 'Nicio lucrare activă'}
+                {activeTab === 'past' && 'Nicio lucrare finalizată'}
+                {activeTab === 'future' && 'Nicio lucrare programată'}
+              </p>
+              <p style={{ color: Colors.textSecondary }}>
+                {activeTab === 'current' && 'Toate lucrările sunt finalizate sau nu sunt încă joburi active.'}
+                {activeTab === 'past' && 'Istoric-ul va apărea aici după finalizarea unor lucrări.'}
+                {activeTab === 'future' && 'Lucrările programate pentru viitor vor apărea aici.'}
+              </p>
+            </div>
+          ) : (
+            <div className="p-6 space-y-4">
+              {filteredJobs.map((job) => (
+                <div
+                  key={job.id}
+                  className="p-4 rounded-lg border transition-all hover:shadow-md"
                   style={{
-                    backgroundColor: Colors.error,
-                    color: Colors.background,
+                    backgroundColor: Colors.surfaceLight,
+                    borderColor: job.priority === 'urgent' ? Colors.error : Colors.border,
+                    borderWidth: job.priority === 'urgent' ? '2px' : '1px'
                   }}
                 >
-                  🌍 Test Cross-Browser
-                </button>
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <div className="flex-1 space-y-2">
+                      {/* Job Header */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h4 className="text-lg font-semibold" style={{ color: Colors.text }}>
+                          #{job.id} - {job.serviceName}
+                        </h4>
+                        <span
+                          className="px-2 py-1 rounded-full text-xs font-medium"
+                          style={{
+                            backgroundColor: `${getStatusColor(job.status)}20`,
+                            color: getStatusColor(job.status),
+                          }}
+                        >
+                          {getStatusLabel(job.status)}
+                        </span>
+                        {job.priority !== 'normal' && (
+                          <span
+                            className="px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1"
+                            style={{
+                              backgroundColor: `${getPriorityColor(job.priority)}20`,
+                              color: getPriorityColor(job.priority),
+                            }}
+                          >
+                            <AlertTriangle size={12} />
+                            {job.priority === 'urgent' ? 'URGENT' : 'Prioritate mare'}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Job Details */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                        <div className="flex items-center gap-2" style={{ color: Colors.textSecondary }}>
+                          <User size={16} />
+                          <span>{job.clientName}</span>
+                        </div>
+                        <div className="flex items-center gap-2" style={{ color: Colors.textSecondary }}>
+                          <Phone size={16} />
+                          <span>{job.clientPhone}</span>
+                        </div>
+                        <div className="flex items-center gap-2" style={{ color: Colors.textSecondary }}>
+                          <MapPin size={16} />
+                          <span>{job.address}</span>
+                        </div>
+                        <div className="flex items-center gap-2" style={{ color: Colors.textSecondary }}>
+                          <User size={16} />
+                          <span>Atribuit: {job.assignedEmployeeName}</span>
+                        </div>
+                      </div>
+
+                      {/* Creation Date */}
+                      <div className="flex items-center gap-2 text-sm" style={{ color: Colors.textMuted }}>
+                        <Calendar size={14} />
+                        <span>Creat: {formatDateTime(job.createdAt)}</span>
+                        {job.completedAt && (
+                          <span className="ml-4 flex items-center gap-1">
+                            <CheckCircle size={14} />
+                            Finalizat: {formatDateTime(job.completedAt)}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Description */}
+                      {job.serviceDescription && (
+                        <p className="text-sm" style={{ color: Colors.textSecondary }}>
+                          {job.serviceDescription}
+                        </p>
+                      )}
+
+                      {/* Completion data preview */}
+                      {job.completionData && (
+                        <div className="mt-2 p-2 rounded" style={{ backgroundColor: Colors.background }}>
+                          <div className="flex flex-wrap gap-4 text-sm" style={{ color: Colors.textSecondary }}>
+                            <span>💰 {job.completionData.totalAmount} RON</span>
+                            <span>💳 {job.completionData.paymentMethod}</span>
+                            {job.completionData.photos && job.completionData.photos.length > 0 && (
+                              <span>📸 {job.completionData.photos.length} poze</span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex flex-wrap gap-2">
+                      {job.completionData?.photos && job.completionData.photos.length > 0 && (
+                        <button
+                          onClick={() => viewJobPhotos(job)}
+                          className="p-2 rounded-lg transition-colors"
+                          style={{ backgroundColor: Colors.info, color: Colors.background }}
+                          title="Vizualizează pozele"
+                        >
+                          <Camera size={16} />
+                        </button>
+                      )}
+                      
+                      {activeTab === 'current' && (
+                        <>
+                          <button
+                            onClick={() => editJob(job)}
+                            className="p-2 rounded-lg transition-colors"
+                            style={{ backgroundColor: Colors.secondary, color: Colors.background }}
+                            title="Editează"
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                          
+                          {job.status !== 'completed' && (
+                            <button
+                              onClick={() => markJobCompleted(job.id)}
+                              className="p-2 rounded-lg transition-colors"
+                              style={{ backgroundColor: Colors.success, color: Colors.background }}
+                              title="Marchează ca finalizat"
+                            >
+                              <CheckCircle size={16} />
+                            </button>
+                          )}
+                          
+                          <button
+                            onClick={() => cancelJob(job.id)}
+                            className="p-2 rounded-lg transition-colors"
+                            style={{ backgroundColor: Colors.warning, color: Colors.background }}
+                            title="Anulează"
+                          >
+                            <X size={16} />
+                          </button>
+                        </>
+                      )}
+                      
+                      <button
+                        onClick={() => deleteJob(job.id)}
+                        className="p-2 rounded-lg transition-colors"
+                        style={{ backgroundColor: Colors.error, color: Colors.background }}
+                        title="Șterge definitiv"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Edit Modal */}
+      {showEditModal && editingJob && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div
+            className="max-w-2xl w-full max-h-[90vh] overflow-y-auto rounded-lg border"
+            style={{
+              backgroundColor: Colors.surface,
+              borderColor: Colors.border,
+            }}
+          >
+            <div className="p-6 border-b" style={{ borderColor: Colors.border }}>
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold" style={{ color: Colors.text }}>
+                  Editează Lucrarea #{editingJob.id}
+                </h3>
                 <button
-                  onClick={addJob}
-                  className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors"
-                  style={{
-                    backgroundColor: Colors.secondary,
-                    color: Colors.background,
-                  }}
+                  onClick={() => setShowEditModal(false)}
+                  className="p-2 rounded-lg transition-colors"
+                  style={{ backgroundColor: Colors.surfaceLight }}
                 >
-                  <Plus size={20} />
-                  Adăugă Lucrare
+                  <X size={20} color={Colors.textSecondary} />
                 </button>
               </div>
             </div>
-
-            {/* Jobs List */}
-            <div
-              className="rounded-lg border"
-              style={{
-                backgroundColor: Colors.surface,
-                borderColor: Colors.border,
-              }}
-            >
-              <div className="p-6 border-b" style={{ borderColor: Colors.border }}>
-                <h3 className="text-lg font-semibold" style={{ color: Colors.text }}>
-                  Lucrări Active
-                </h3>
-              </div>
-              
-              <div className="p-6 space-y-4">
-                {jobs.map((job) => (
-                  <div
-                    key={job.id}
-                    className="p-4 rounded-lg border"
+            
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: Colors.textSecondary }}>
+                    Nume client
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.clientName}
+                    onChange={(e) => setEditForm(prev => ({...prev, clientName: e.target.value}))}
+                    className="w-full px-4 py-3 rounded-lg border"
                     style={{
+                      borderColor: Colors.border,
                       backgroundColor: Colors.surfaceLight,
-                      borderColor: job.priority === 'urgent' ? Colors.error : Colors.border,
-                      borderWidth: job.priority === 'urgent' ? '2px' : '1px'
+                      color: Colors.text
+                    }}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: Colors.textSecondary }}>
+                    Telefon client
+                  </label>
+                  <input
+                    type="tel"
+                    value={editForm.clientPhone}
+                    onChange={(e) => setEditForm(prev => ({...prev, clientPhone: e.target.value}))}
+                    className="w-full px-4 py-3 rounded-lg border"
+                    style={{
+                      borderColor: Colors.border,
+                      backgroundColor: Colors.surfaceLight,
+                      color: Colors.text
+                    }}
+                  />
+                </div>
+                
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium mb-2" style={{ color: Colors.textSecondary }}>
+                    Adresa
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.address}
+                    onChange={(e) => setEditForm(prev => ({...prev, address: e.target.value}))}
+                    className="w-full px-4 py-3 rounded-lg border"
+                    style={{
+                      borderColor: Colors.border,
+                      backgroundColor: Colors.surfaceLight,
+                      color: Colors.text
+                    }}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: Colors.textSecondary }}>
+                    Serviciu
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.serviceName}
+                    onChange={(e) => setEditForm(prev => ({...prev, serviceName: e.target.value}))}
+                    className="w-full px-4 py-3 rounded-lg border"
+                    style={{
+                      borderColor: Colors.border,
+                      backgroundColor: Colors.surfaceLight,
+                      color: Colors.text
+                    }}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: Colors.textSecondary }}>
+                    Angajat atribuit
+                  </label>
+                  <select
+                    value={editForm.assignedEmployeeId}
+                    onChange={(e) => {
+                      const worker = availableWorkers.find(w => w.id === e.target.value);
+                      setEditForm(prev => ({
+                        ...prev, 
+                        assignedEmployeeId: e.target.value,
+                        assignedEmployeeName: worker?.name || ''
+                      }));
+                    }}
+                    className="w-full px-4 py-3 rounded-lg border"
+                    style={{
+                      borderColor: Colors.border,
+                      backgroundColor: Colors.surfaceLight,
+                      color: Colors.text
                     }}
                   >
-                    <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-3">
-                          <h4 className="font-semibold text-sm md:text-base" style={{ color: Colors.text }}>
-                            #{job.id} - {job.serviceName}
-                          </h4>
-                          <span
-                            className="px-2 py-1 rounded-full text-xs font-medium w-fit"
-                            style={{
-                              backgroundColor: job.status === 'in_progress' ? Colors.warning : 
-                                              job.status === 'assigned' ? Colors.info : Colors.secondary,
-                              color: Colors.primary,
-                            }}
-                          >
-                            {job.status === 'in_progress' ? 'ÎN PROGRES' :
-                             job.status === 'assigned' ? 'ATRIBUIT' : 'PENDING'}
-                          </span>
-                        </div>
-                        <div className="space-y-2 text-xs md:text-sm" style={{ color: Colors.textSecondary }}>
-                          <p className="flex items-center gap-2">
-                            <User size={16} className="flex-shrink-0" />
-                            {job.clientName}
-                          </p>
-                          <p className="flex items-center gap-2">
-                            <MapPin size={16} className="flex-shrink-0" />
-                            {job.address}
-                          </p>
-                          <p className="flex items-center gap-2">
-                            📞 {job.clientPhone}
-                          </p>
-                          <p className="flex items-center gap-2">
-                            <User size={16} className="flex-shrink-0" />
-                            Atribuit: {job.assignedEmployeeName}
-                          </p>
-                          {job.completionData && (
-                            <p className="flex items-center gap-2 text-green-600">
-                              ✅ Finalizat: {job.completionData.totalAmount} RON ({job.completionData.paymentMethod})
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
-                        {job.completionData?.photos && job.completionData.photos.length > 0 && (
-                          <button
-                            onClick={() => viewJobPhotos(job)}
-                            className="px-3 py-1 rounded-lg font-medium text-sm transition-colors flex items-center gap-2"
-                            style={{
-                              backgroundColor: Colors.secondary,
-                              color: Colors.primary,
-                            }}
-                            title={`Vezi ${job.completionData.photos.length} poze uploadate`}
-                          >
-                            <Image size={16} />
-                            Vezi Poze ({job.completionData.photos.length})
-                          </button>
-                        )}
-                        <button
-                          onClick={() => editJob(job)}
-                          className="px-3 py-1 rounded-lg font-medium text-sm transition-colors flex items-center gap-2"
-                          style={{
-                            backgroundColor: Colors.info,
-                            color: Colors.primary,
-                          }}
-                          title="Editează lucrarea"
-                        >
-                          <Edit size={16} />
-                          Editează
-                        </button>
-                        
-                        {/* Reatribuire rapidă */}
-                        <select
-                          onChange={(e) => {
-                            if (e.target.value) {
-                              const worker = availableWorkers.find(w => w.id === e.target.value);
-                              if (worker) {
-                                reassignJob(job.id, worker.id, worker.name);
-                              }
-                              e.target.value = '';
-                            }
-                          }}
-                          className="px-2 py-1 rounded-lg text-sm transition-colors"
-                          style={{
-                            backgroundColor: Colors.warning,
-                            color: Colors.primary,
-                            border: 'none'
-                          }}
-                          title="Reatribuie rapid"
-                        >
-                          <option value="">Reatribuie</option>
-                          {availableWorkers.map(worker => (
-                            <option key={worker.id} value={worker.id}>
-                              {worker.name}
-                            </option>
-                          ))}
-                        </select>
-                        
-                        <button
-                          onClick={() => markJobCompleted(job.id)}
-                          className="px-3 py-1 rounded-lg font-medium text-sm transition-colors flex items-center gap-2"
-                          style={{
-                            backgroundColor: Colors.success,
-                            color: Colors.primary,
-                          }}
-                          title="Marchează lucrarea ca finalizată"
-                        >
-                          <CheckCircle size={16} />
-                          Finalizat
-                        </button>
-                        <button
-                          onClick={() => cancelJob(job.id)}
-                          className="px-3 py-1 rounded-lg font-medium text-sm transition-colors flex items-center gap-2"
-                          style={{
-                            backgroundColor: Colors.error,
-                            color: Colors.primary,
-                          }}
-                          title="Anulează lucrarea"
-                        >
-                          <AlertCircle size={16} />
-                          Anulează
-                        </button>
-                        <button
-                          onClick={() => deleteJob(job.id)}
-                          className="px-3 py-1 rounded-lg font-medium text-sm transition-colors flex items-center gap-2"
-                          style={{
-                            backgroundColor: Colors.textMuted,
-                            color: Colors.primary,
-                          }}
-                          title="Șterge definitiv lucrarea"
-                        >
-                          <Trash2 size={16} />
-                          Șterge
-                        </button>
-                      </div>
+                    {availableWorkers.map(worker => (
+                      <option key={worker.id} value={worker.id}>
+                        {worker.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: Colors.textSecondary }}>
+                    Prioritate
+                  </label>
+                  <select
+                    value={editForm.priority}
+                    onChange={(e) => setEditForm(prev => ({...prev, priority: e.target.value as Job['priority']}))}
+                    className="w-full px-4 py-3 rounded-lg border"
+                    style={{
+                      borderColor: Colors.border,
+                      backgroundColor: Colors.surfaceLight,
+                      color: Colors.text
+                    }}
+                  >
+                    <option value="normal">Normală</option>
+                    <option value="high">Prioritate mare</option>
+                    <option value="urgent">Urgentă</option>
+                  </select>
+                </div>
+                
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium mb-2" style={{ color: Colors.textSecondary }}>
+                    Descriere serviciu
+                  </label>
+                  <textarea
+                    value={editForm.serviceDescription}
+                    onChange={(e) => setEditForm(prev => ({...prev, serviceDescription: e.target.value}))}
+                    rows={3}
+                    className="w-full px-4 py-3 rounded-lg border resize-none"
+                    style={{
+                      borderColor: Colors.border,
+                      backgroundColor: Colors.surfaceLight,
+                      color: Colors.text
+                    }}
+                  />
+                </div>
+                
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium mb-2" style={{ color: Colors.textSecondary }}>
+                    Instrucțiuni speciale
+                  </label>
+                  <textarea
+                    value={editForm.specialInstructions}
+                    onChange={(e) => setEditForm(prev => ({...prev, specialInstructions: e.target.value}))}
+                    rows={3}
+                    className="w-full px-4 py-3 rounded-lg border resize-none"
+                    style={{
+                      borderColor: Colors.border,
+                      backgroundColor: Colors.surfaceLight,
+                      color: Colors.text
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-6 border-t flex gap-3" style={{ borderColor: Colors.border }}>
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="px-4 py-2 rounded-lg font-medium transition-colors border"
+                style={{
+                  borderColor: Colors.border,
+                  color: Colors.textSecondary,
+                  backgroundColor: 'transparent'
+                }}
+              >
+                Anulează
+              </button>
+              <button
+                onClick={saveJobEdit}
+                className="flex-1 px-4 py-2 rounded-lg font-medium transition-colors"
+                style={{
+                  backgroundColor: Colors.secondary,
+                  color: Colors.background,
+                }}
+              >
+                Salvează Modificările
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Photos Modal */}
+      {showPhotosModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div
+            className="max-w-4xl w-full max-h-[90vh] overflow-y-auto rounded-lg border"
+            style={{
+              backgroundColor: Colors.surface,
+              borderColor: Colors.border,
+            }}
+          >
+            <div className="p-6 border-b" style={{ borderColor: Colors.border }}>
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold" style={{ color: Colors.text }}>
+                  📷 Poze Lucrare #{selectedJobPhotos.job.id} - {selectedJobPhotos.job.serviceName}
+                </h3>
+                <button
+                  onClick={() => setShowPhotosModal(false)}
+                  className="p-2 rounded-lg transition-colors"
+                  style={{ backgroundColor: Colors.surfaceLight }}
+                >
+                  <X size={20} color={Colors.textSecondary} />
+                </button>
+              </div>
+              <p className="text-sm mt-2" style={{ color: Colors.textSecondary }}>
+                Client: {selectedJobPhotos.job.clientName} • {selectedJobPhotos.job.address}
+              </p>
+              {selectedJobPhotos.job.completionData && (
+                <p className="text-sm mt-1" style={{ color: Colors.textSecondary }}>
+                  Finalizat: {selectedJobPhotos.job.completionData.totalAmount} RON ({selectedJobPhotos.job.completionData.paymentMethod})
+                  {selectedJobPhotos.job.completionData.workDescription && ` • ${selectedJobPhotos.job.completionData.workDescription}`}
+                </p>
+              )}
+            </div>
+            
+            <div className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {selectedJobPhotos.photos.map((photo, index) => (
+                  <div key={index} className="relative">
+                    <img
+                      src={photo}
+                      alt={`Poza ${index + 1} - ${selectedJobPhotos.job.serviceName}`}
+                      className="w-full h-64 object-cover rounded-lg border"
+                      style={{ borderColor: Colors.border, cursor: 'pointer' }}
+                      onClick={() => window.open(photo, '_blank')}
+                      title="Click pentru a deschide în mărime naturală"
+                    />
+                    <div 
+                      className="absolute bottom-2 right-2 px-2 py-1 rounded text-xs font-medium"
+                      style={{
+                        backgroundColor: 'rgba(0,0,0,0.7)',
+                        color: 'white'
+                      }}
+                    >
+                      {index + 1}/{selectedJobPhotos.photos.length}
                     </div>
                   </div>
                 ))}
               </div>
+              
+              <div className="mt-6 text-center">
+                <p className="text-sm" style={{ color: Colors.textSecondary }}>
+                  📝 Click pe o poza pentru a o deschide în mărime naturală
+                </p>
+              </div>
             </div>
-
-            {/* Edit Job Modal */}
-            {showEditModal && editingJob && (
-              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                <div
-                  className="max-w-2xl w-full max-h-[90vh] overflow-y-auto rounded-lg border"
-                  style={{
-                    backgroundColor: Colors.surface,
-                    borderColor: Colors.border,
-                  }}
-                >
-                  <div className="p-6 border-b" style={{ borderColor: Colors.border }}>
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-semibold" style={{ color: Colors.text }}>
-                        Editează Lucrarea #{editingJob.id}
-                      </h3>
-                      <button
-                        onClick={() => setShowEditModal(false)}
-                        className="p-2 rounded-lg transition-colors"
-                        style={{ backgroundColor: Colors.surfaceLight }}
-                      >
-                        <X size={20} color={Colors.textSecondary} />
-                      </button>
-                    </div>
-                  </div>
-                  
-                  <div className="p-6 space-y-4">
-                    {/* Client Information */}
-                    <div>
-                      <label className="block text-sm font-medium mb-2" style={{ color: Colors.textSecondary }}>
-                        Nume client
-                      </label>
-                      <input
-                        type="text"
-                        value={editForm.clientName}
-                        onChange={(e) => setEditForm(prev => ({...prev, clientName: e.target.value}))}
-                        className="w-full px-4 py-3 rounded-lg border bg-transparent"
-                        style={{
-                          borderColor: Colors.border,
-                          backgroundColor: Colors.surfaceLight,
-                          color: Colors.text
-                        }}
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium mb-2" style={{ color: Colors.textSecondary }}>
-                        Telefon client
-                      </label>
-                      <input
-                        type="tel"
-                        value={editForm.clientPhone}
-                        onChange={(e) => setEditForm(prev => ({...prev, clientPhone: e.target.value}))}
-                        className="w-full px-4 py-3 rounded-lg border bg-transparent"
-                        style={{
-                          borderColor: Colors.border,
-                          backgroundColor: Colors.surfaceLight,
-                          color: Colors.text
-                        }}
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium mb-2" style={{ color: Colors.textSecondary }}>
-                        Adresă
-                      </label>
-                      <input
-                        type="text"
-                        value={editForm.address}
-                        onChange={(e) => setEditForm(prev => ({...prev, address: e.target.value}))}
-                        className="w-full px-4 py-3 rounded-lg border bg-transparent"
-                        style={{
-                          borderColor: Colors.border,
-                          backgroundColor: Colors.surfaceLight,
-                          color: Colors.text
-                        }}
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium mb-2" style={{ color: Colors.textSecondary }}>
-                        Tip serviciu
-                      </label>
-                      <input
-                        type="text"
-                        value={editForm.serviceName}
-                        onChange={(e) => setEditForm(prev => ({...prev, serviceName: e.target.value}))}
-                        className="w-full px-4 py-3 rounded-lg border bg-transparent"
-                        style={{
-                          borderColor: Colors.border,
-                          backgroundColor: Colors.surfaceLight,
-                          color: Colors.text
-                        }}
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium mb-2" style={{ color: Colors.textSecondary }}>
-                        Lucrător atribuit
-                      </label>
-                      <select
-                        value={editForm.assignedEmployeeId}
-                        onChange={(e) => {
-                          const selectedWorker = availableWorkers.find(w => w.id === e.target.value);
-                          setEditForm(prev => ({
-                            ...prev,
-                            assignedEmployeeId: e.target.value,
-                            assignedEmployeeName: selectedWorker?.name || 'Neatribuit'
-                          }));
-                        }}
-                        className="w-full px-4 py-3 rounded-lg border bg-transparent"
-                        style={{
-                          borderColor: Colors.border,
-                          backgroundColor: Colors.surfaceLight,
-                          color: Colors.text
-                        }}
-                      >
-                        <option value="">Neatribuit</option>
-                        {availableWorkers.map(worker => (
-                          <option key={worker.id} value={worker.id}>
-                            {worker.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium mb-2" style={{ color: Colors.textSecondary }}>
-                        Prioritate
-                      </label>
-                      <select
-                        value={editForm.priority}
-                        onChange={(e) => setEditForm(prev => ({...prev, priority: e.target.value as Job['priority']}))}
-                        className="w-full px-4 py-3 rounded-lg border bg-transparent"
-                        style={{
-                          borderColor: Colors.border,
-                          backgroundColor: Colors.surfaceLight,
-                          color: Colors.text
-                        }}
-                      >
-                        <option value="normal">Normală</option>
-                        <option value="high">Prioritate mare</option>
-                        <option value="urgent">Urgentă</option>
-                      </select>
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium mb-2" style={{ color: Colors.textSecondary }}>
-                        Instrucțiuni speciale
-                      </label>
-                      <textarea
-                        value={editForm.specialInstructions}
-                        onChange={(e) => setEditForm(prev => ({...prev, specialInstructions: e.target.value}))}
-                        rows={3}
-                        className="w-full px-4 py-3 rounded-lg border bg-transparent resize-none"
-                        style={{
-                          borderColor: Colors.border,
-                          backgroundColor: Colors.surfaceLight,
-                          color: Colors.text
-                        }}
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="p-6 border-t flex gap-3" style={{ borderColor: Colors.border }}>
-                    <button
-                      onClick={() => setShowEditModal(false)}
-                      className="px-4 py-2 rounded-lg font-medium transition-colors border"
-                      style={{
-                        borderColor: Colors.border,
-                        color: Colors.textSecondary,
-                        backgroundColor: 'transparent'
-                      }}
-                    >
-                      Anulează
-                    </button>
-                    <button
-                      onClick={saveJobEdit}
-                      className="flex-1 px-4 py-2 rounded-lg font-medium transition-colors"
-                      style={{
-                        backgroundColor: Colors.secondary,
-                        color: Colors.background,
-                      }}
-                    >
-                      Salvează Modificările
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Photos Modal */}
-            {showPhotosModal && (
-              <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-                <div
-                  className="max-w-4xl w-full max-h-[90vh] overflow-y-auto rounded-lg border"
-                  style={{
-                    backgroundColor: Colors.surface,
-                    borderColor: Colors.border,
-                  }}
-                >
-                  <div className="p-6 border-b" style={{ borderColor: Colors.border }}>
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-semibold" style={{ color: Colors.text }}>
-                        📷 Poze Lucrare #{selectedJobPhotos.job.id} - {selectedJobPhotos.job.serviceName}
-                      </h3>
-                      <button
-                        onClick={() => setShowPhotosModal(false)}
-                        className="p-2 rounded-lg transition-colors"
-                        style={{ backgroundColor: Colors.surfaceLight }}
-                      >
-                        <X size={20} color={Colors.textSecondary} />
-                      </button>
-                    </div>
-                    <p className="text-sm mt-2" style={{ color: Colors.textSecondary }}>
-                      Client: {selectedJobPhotos.job.clientName} • {selectedJobPhotos.job.address}
-                    </p>
-                    {selectedJobPhotos.job.completionData && (
-                      <p className="text-sm mt-1" style={{ color: Colors.textSecondary }}>
-                        Finalizat: {selectedJobPhotos.job.completionData.totalAmount} RON ({selectedJobPhotos.job.completionData.paymentMethod})
-                        {selectedJobPhotos.job.completionData.workDescription && ` • ${selectedJobPhotos.job.completionData.workDescription}`}
-                      </p>
-                    )}
-                  </div>
-                  
-                  <div className="p-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {selectedJobPhotos.photos.map((photo, index) => (
-                        <div key={index} className="relative">
-                          <img
-                            src={photo}
-                            alt={`Poza ${index + 1} - ${selectedJobPhotos.job.serviceName}`}
-                            className="w-full h-64 object-cover rounded-lg border"
-                            style={{ borderColor: Colors.border, cursor: 'pointer' }}
-                            onClick={() => window.open(photo, '_blank')}
-                            title="Click pentru a deschide în mărime naturală"
-                          />
-                          <div 
-                            className="absolute bottom-2 right-2 px-2 py-1 rounded text-xs font-medium"
-                            style={{
-                              backgroundColor: 'rgba(0,0,0,0.7)',
-                              color: 'white'
-                            }}
-                          >
-                            {index + 1}/{selectedJobPhotos.photos.length}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    
-                    <div className="mt-6 text-center">
-                      <p className="text-sm" style={{ color: Colors.textSecondary }}>
-                        📝 Click pe o poza pentru a o deschide în mărime naturală
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
+        </div>
+      )}
     </AdminLayout>
   );
 }

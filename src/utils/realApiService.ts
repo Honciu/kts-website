@@ -134,6 +134,11 @@ class RealAPIService {
    * PUT /api/jobs/:id - Actualizează un job
    */
   async updateJob(jobId: string, updates: Partial<Job>): Promise<APIResponse<Job>> {
+    console.log('🌐 RealAPI: Updating job with detailed info:');
+    console.log('  - Job ID:', jobId);
+    console.log('  - API URL:', `${this.baseUrl}/jobs/${jobId}`);
+    console.log('  - Updates payload:', JSON.stringify(updates, null, 2));
+    
     try {
       const response = await fetch(`${this.baseUrl}/jobs/${jobId}`, {
         method: 'PUT',
@@ -143,12 +148,19 @@ class RealAPIService {
         body: JSON.stringify(updates)
       });
 
+      console.log('🌐 RealAPI: Response status:', response.status, response.statusText);
+
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        const errorText = await response.text();
+        console.error('❌ RealAPI: HTTP Error Response:', errorText);
+        throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
       }
 
       const data = await response.json();
-      console.log('🌐 RealAPI: Updated job:', jobId);
+      console.log('✅ RealAPI: Job update successful!');
+      console.log('  - Updated job ID:', jobId);
+      console.log('  - New status:', data.data?.status);
+      console.log('  - Completion data:', data.data?.completionData);
       
       return data;
     } catch (error) {
