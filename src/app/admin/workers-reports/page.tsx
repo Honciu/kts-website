@@ -56,7 +56,8 @@ export default function AdminWorkersReports() {
         
         if (response.success) {
           const allJobs = response.data;
-          const completedJobs = allJobs.filter(job => job.status === 'completed');
+          // Include both completed and pending_approval jobs
+          const completedJobs = allJobs.filter(job => ['completed', 'pending_approval'].includes(job.status));
           
           // Calculate week boundaries
           const weekStart = getWeekStart(selectedWeek);
@@ -69,15 +70,29 @@ export default function AdminWorkersReports() {
           console.log('  • Selected week:', selectedWeek.toISOString());
           
           // Filter jobs by completion date for selected week
+          console.log('  • 🗓️ Filtering jobs for week:');
+          console.log(`    - Week start: ${weekStart.toLocaleDateString('ro-RO')} ${weekStart.toLocaleTimeString()}`);
+          console.log(`    - Week end: ${weekEnd.toLocaleDateString('ro-RO')} ${weekEnd.toLocaleTimeString()}`);
+          
+          // Enhanced filtering with detailed logging
           const weekJobs = completedJobs.filter(job => {
             const completionDate = new Date(job.completedAt || job.createdAt);
-            return completionDate >= weekStart && completionDate <= weekEnd;
+            const isInWeek = completionDate >= weekStart && completionDate <= weekEnd;
+            
+            console.log(`    - Job #${job.id}: ${completionDate.toLocaleDateString('ro-RO')} ${completionDate.toLocaleTimeString()} ${isInWeek ? '✅ INCLUDED' : '❌ excluded'}`);
+            
+            return isInWeek;
           });
           
-          console.log('  • Week jobs found:', weekJobs.length);
-          weekJobs.forEach(job => {
-            console.log(`    - Job #${job.id}: ${job.serviceName} - ${job.assignedEmployeeName} - ${new Date(job.completedAt || job.createdAt).toISOString()}`);
-          });
+          console.log('  • 📊 Week jobs found:', weekJobs.length);
+          if (weekJobs.length === 0) {
+            console.log('  • ⚠️ NO JOBS FOUND for current week!');
+            console.log('  • Available completed jobs:');
+            completedJobs.forEach(job => {
+              const completionDate = new Date(job.completedAt || job.createdAt);
+              console.log(`    - Job #${job.id}: ${job.serviceName} completed on ${completionDate.toLocaleDateString('ro-RO')} ${completionDate.toLocaleTimeString()}`);
+            });
+          }
           
           // Group by worker and calculate stats
           const workerStats: Record<string, WorkerReport> = {};

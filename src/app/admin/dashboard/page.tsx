@@ -22,6 +22,9 @@ interface DashboardStats {
   activeJobs: number;
   activeEmployees: number;
   weeklyRevenue: number;
+  weeklyExpenses: number;
+  weeklyMaterialCosts: number;
+  weeklyAdSpend: number;
   weeklyProfit: number;
 }
 
@@ -41,6 +44,9 @@ export default function AdminDashboard() {
     activeJobs: 0,
     activeEmployees: 0,
     weeklyRevenue: 0,
+    weeklyExpenses: 0,
+    weeklyMaterialCosts: 0,
+    weeklyAdSpend: 0,
     weeklyProfit: 0
   });
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
@@ -133,7 +139,7 @@ export default function AdminDashboard() {
         
         const weeklyJobs = allJobs.filter(job => {
           const jobDate = new Date(job.completedAt || job.createdAt);
-          return job.status === 'completed' && jobDate >= currentWeekStart && jobDate <= currentWeekEnd;
+          return ['completed', 'pending_approval'].includes(job.status) && jobDate >= currentWeekStart && jobDate <= currentWeekEnd;
         });
         
         console.log('📋 Weekly Jobs Calculation:');
@@ -186,16 +192,20 @@ export default function AdminDashboard() {
           }
         }
         
-        // Calculate profit with ad spend deducted
-        const grossProfit = weeklyRevenue - weeklyExpenses;
-        const netProfit = grossProfit - weeklyAdSpend;
+        // Estimate material costs (approximately 15% of total revenue for locksmith services)
+        const weeklyMaterialCosts = Math.round(weeklyRevenue * 0.15);
         
-        console.log('💰 Financial Summary:');
-        console.log(`  • Weekly Revenue: ${weeklyRevenue} RON`);
-        console.log(`  • Weekly Worker Expenses: ${weeklyExpenses} RON`);
-        console.log(`  • Weekly Ad Spend: ${weeklyAdSpend} RON`);
-        console.log(`  • Gross Profit: ${grossProfit} RON`);
-        console.log(`  • Net Profit (after ads): ${netProfit} RON`);
+        // Calculate profit: Incasari - Salarii - Materiale - Reclama = Profit
+        const totalCosts = weeklyExpenses + weeklyMaterialCosts + weeklyAdSpend;
+        const netProfit = weeklyRevenue - totalCosts;
+        
+        console.log('💰 Detailed Financial Summary (Formula: Incasari - Salarii - Materiale - Reclama):');
+        console.log(`  • 💰 Încăsări (Revenue): ${weeklyRevenue} RON`);
+        console.log(`  • 👥 Salarii (Worker Expenses): ${weeklyExpenses} RON`);
+        console.log(`  • 🔧 Materiale (15% estimate): ${weeklyMaterialCosts} RON`);
+        console.log(`  • 📱 Reclame (Ad Spend): ${weeklyAdSpend} RON`);
+        console.log(`  • 📋 Total Costuri: ${totalCosts} RON`);
+        console.log(`  • ✨ PROFIT NET: ${netProfit} RON`);
         
         const weeklyProfit = netProfit;
         
@@ -203,6 +213,9 @@ export default function AdminDashboard() {
           activeJobs,
           activeEmployees,
           weeklyRevenue,
+          weeklyExpenses, // salarii
+          weeklyMaterialCosts, // materiale
+          weeklyAdSpend, // reclame
           weeklyProfit
         });
         
@@ -322,13 +335,31 @@ export default function AdminDashboard() {
       icon: Users 
     },
     { 
-      title: 'Venit Săptămânal', 
+      title: '💰 Încăsări Săptămânale', 
       value: loading ? '...' : `${dashboardStats.weeklyRevenue.toLocaleString('ro-RO')} RON`, 
-      color: Colors.warning, 
+      color: Colors.success, 
       icon: DollarSign 
     },
     { 
-      title: 'Profit Net (după reclame)', 
+      title: '👥 Salarii', 
+      value: loading ? '...' : `${dashboardStats.weeklyExpenses.toLocaleString('ro-RO')} RON`, 
+      color: Colors.warning, 
+      icon: Users 
+    },
+    { 
+      title: '🔧 Materiale', 
+      value: loading ? '...' : `${dashboardStats.weeklyMaterialCosts.toLocaleString('ro-RO')} RON`, 
+      color: Colors.info, 
+      icon: Settings 
+    },
+    { 
+      title: '📱 Reclame', 
+      value: loading ? '...' : `${dashboardStats.weeklyAdSpend.toLocaleString('ro-RO')} RON`, 
+      color: Colors.error, 
+      icon: DollarSign 
+    },
+    { 
+      title: '✨ PROFIT NET', 
       value: loading ? '...' : `${dashboardStats.weeklyProfit.toLocaleString('ro-RO')} RON`, 
       color: Colors.secondary, 
       icon: BarChart3 
