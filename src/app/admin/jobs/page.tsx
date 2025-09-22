@@ -670,10 +670,9 @@ export default function AdminJobs() {
                             src={photo}
                             alt={`Poza ${index + 1} - ${selectedJobPhotos.job.serviceName}`}
                             className="w-full h-64 object-cover rounded-lg border"
-                            style={{ borderColor: Colors.border }}
+                            style={{ borderColor: Colors.border, cursor: 'pointer' }}
                             onClick={() => window.open(photo, '_blank')}
                             title="Click pentru a deschide în mărime naturală"
-                            style={{ cursor: 'pointer' }}
                           />
                           <div 
                             className="absolute bottom-2 right-2 px-2 py-1 rounded text-xs font-medium"
