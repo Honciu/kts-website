@@ -91,7 +91,7 @@ export default function AdminDashboard() {
         let activeEmployees = 0;
         if (usersResponse.success) {
           const allUsers = usersResponse.data;
-          const workers = allUsers.filter(user => user.type === 'WORKER' && user.isActive);
+          const workers = allUsers.filter((user: any) => user.type === 'WORKER' && user.isActive);
           activeEmployees = workers.length;
           
           console.log('👥 Users REAL DATA:');
