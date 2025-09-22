@@ -135,12 +135,45 @@ export default function AdminDashboard() {
           return total + (job.completionData?.workerCommission || 0);
         }, 0);
         
-        const weeklyProfit = weeklyRevenue - weeklyExpenses;
+        // Calculate ad spending for the same week
+        const ADS_STORAGE_KEY = 'kts_ads_data';
+        let weeklyAdSpend = 0;
+        
+        if (typeof window !== 'undefined') {
+          try {
+            const savedAdsData = localStorage.getItem(ADS_STORAGE_KEY);
+            if (savedAdsData) {
+              const adsData = JSON.parse(savedAdsData);
+              const weekKey = oneWeekAgo.toISOString().split('T')[0];
+              
+              // Sum ad spending across all workers for this week
+              Object.keys(adsData).forEach(workerId => {
+                if (adsData[workerId][weekKey]) {
+                  weeklyAdSpend += adsData[workerId][weekKey].weeklyTotal || 0;
+                }
+              });
+              
+              console.log('📱 Ad Spend Calculation:');
+              console.log(`  • Week key: ${weekKey}`);
+              console.log(`  • Total ad spend this week: ${weeklyAdSpend} RON`);
+            }
+          } catch (error) {
+            console.error('❌ Error loading ad spend data:', error);
+          }
+        }
+        
+        // Calculate profit with ad spend deducted
+        const grossProfit = weeklyRevenue - weeklyExpenses;
+        const netProfit = grossProfit - weeklyAdSpend;
         
         console.log('💰 Financial Summary:');
         console.log(`  • Weekly Revenue: ${weeklyRevenue} RON`);
-        console.log(`  • Weekly Expenses: ${weeklyExpenses} RON`);
-        console.log(`  • Weekly Profit: ${weeklyProfit} RON`);
+        console.log(`  • Weekly Worker Expenses: ${weeklyExpenses} RON`);
+        console.log(`  • Weekly Ad Spend: ${weeklyAdSpend} RON`);
+        console.log(`  • Gross Profit: ${grossProfit} RON`);
+        console.log(`  • Net Profit (after ads): ${netProfit} RON`);
+        
+        const weeklyProfit = netProfit;
         
         setDashboardStats({
           activeJobs,
@@ -208,9 +241,24 @@ export default function AdminDashboard() {
       }
     });
     
+    // Add localStorage listener for ads data changes
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'kts_ads_data') {
+        console.log('📱 Dashboard: Ads data changed - refreshing profit calculation!');
+        loadDashboardData();
+      }
+    };
+    
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', handleStorageChange);
+    }
+    
     return () => {
-      console.log('🧹 Dashboard: Cleaning up listeners');
+      console.log('🧽 Dashboard: Cleaning up listeners');
       realApiService.removeChangeListener('admin-dashboard-real');
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('storage', handleStorageChange);
+      }
     };
   }, [user, router]);
 
@@ -256,7 +304,7 @@ export default function AdminDashboard() {
       icon: DollarSign 
     },
     { 
-      title: 'Profit', 
+      title: 'Profit Net (după reclame)', 
       value: loading ? '...' : `${dashboardStats.weeklyProfit.toLocaleString('ro-RO')} RON`, 
       color: Colors.secondary, 
       icon: BarChart3 
