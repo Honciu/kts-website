@@ -8,6 +8,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
+    console.log('🗑️ API: Deleting/deactivating employee:', id)
 
     // Check if employee exists
     const employee = await prisma.user.findUnique({
@@ -16,7 +17,7 @@ export async function DELETE(
 
     if (!employee) {
       return NextResponse.json(
-        { success: false, error: 'Employee not found' },
+        { success: false, error: 'Angajatul nu a fost găsit' },
         { status: 404 }
       )
     }
@@ -30,18 +31,20 @@ export async function DELETE(
       }
     })
 
+    console.log('✅ API: Employee deactivated successfully:', employee.name)
+
     return NextResponse.json({
       success: true,
       data: { 
         id: deactivatedEmployee.id, 
-        message: 'Employee deactivated successfully' 
+        message: 'Angajatul a fost dezactivat cu succes' 
       },
       timestamp: new Date().toISOString()
     })
   } catch (error) {
-    console.error('Error deleting employee:', error)
+    console.error('❌ API Error deleting employee:', error)
     return NextResponse.json(
-      { success: false, error: 'Failed to delete employee' },
+      { success: false, error: 'Eroare la ștergerea angajatului' },
       { status: 500 }
     )
   }
@@ -55,7 +58,9 @@ export async function PUT(
   try {
     const { id } = await params
     const body = await request.json()
-    const { name, email, phone, isActive } = body
+    console.log('✏️ API: Updating employee:', id, body)
+    
+    const { name, email, phone, isActive, salaryPercentage } = body
 
     // Check if employee exists
     const employee = await prisma.user.findUnique({
@@ -64,7 +69,7 @@ export async function PUT(
 
     if (!employee) {
       return NextResponse.json(
-        { success: false, error: 'Employee not found' },
+        { success: false, error: 'Angajatul nu a fost găsit' },
         { status: 404 }
       )
     }
@@ -77,7 +82,7 @@ export async function PUT(
 
       if (existingUser) {
         return NextResponse.json(
-          { success: false, error: 'Email already exists' },
+          { success: false, error: 'Un alt utilizator cu acest email există deja' },
           { status: 400 }
         )
       }
@@ -90,22 +95,41 @@ export async function PUT(
         ...(email && { email }),
         ...(phone !== undefined && { phone }),
         ...(isActive !== undefined && { isActive }),
+        ...(salaryPercentage !== undefined && { salaryPercentage }),
         updatedAt: new Date()
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        isActive: true,
+        type: true,
+        salaryPercentage: true,
+        createdAt: true,
+        updatedAt: true
       }
     })
 
-    // Remove password from response
-    const { password: _, ...employeeResponse } = updatedEmployee
+    console.log('✅ API: Employee updated successfully:', updatedEmployee.name)
 
     return NextResponse.json({
       success: true,
-      data: employeeResponse,
+      data: updatedEmployee,
       timestamp: new Date().toISOString()
     })
-  } catch (error) {
-    console.error('Error updating employee:', error)
+  } catch (error: any) {
+    console.error('❌ API Error updating employee:', error)
+    
+    if (error.code === 'P2002') {
+      return NextResponse.json(
+        { success: false, error: 'Un utilizator cu acest email există deja' },
+        { status: 400 }
+      )
+    }
+    
     return NextResponse.json(
-      { success: false, error: 'Failed to update employee' },
+      { success: false, error: 'Eroare la actualizarea angajatului' },
       { status: 500 }
     )
   }

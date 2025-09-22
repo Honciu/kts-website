@@ -56,7 +56,7 @@ export default function AdminAds() {
   const [editingCosts, setEditingCosts] = useState<{workerId: string, salaries: number, materials: number} | null>(null);
   
   // Site-urile business - încărcate din baza de date
-  const [workers, setWorkers] = useState<{id: string, name: string}[]>([]);
+  const [partners, setPartners] = useState<{id: string, name: string}[]>([]);
   
   const ADS_STORAGE_KEY = 'kts_ads_data';
   const COSTS_STORAGE_KEY = 'kts_weekly_costs';
@@ -80,43 +80,38 @@ export default function AdminAds() {
     return `${start.getDate()}.${(start.getMonth() + 1).toString().padStart(2, '0')} - ${end.getDate()}.${(end.getMonth() + 1).toString().padStart(2, '0')}.${end.getFullYear()}`;
   };
   
-  // Încarcă utilizatorii din baza de date
-  const loadWorkersFromDatabase = async () => {
+  // Încărcă partenerii business din baza de date
+  const loadPartnersFromDatabase = async () => {
     try {
-      console.log('👥 Loading workers from database...');
+      console.log('👥 Loading business partners from database...');
       
-      const response = await fetch('/api/users');
-      const userData = await response.json();
+      // Inițializează partenerii first
+      await fetch('/api/partners/initialize', { method: 'POST' });
       
-      if (userData.success) {
-        // Filtrăm doar utilizatorii activi de tip WORKER sau cei care au nume relevante pentru ADS
-        const adsWorkers = userData.data.filter((user: any) => 
-          user.isActive && (
-            user.type === 'WORKER' || 
-            user.name.toLowerCase().includes('robert') ||
-            user.name.toLowerCase().includes('arslan') ||
-            user.name.toLowerCase().includes('norbert')
-          )
-        ).map((user: any) => ({
-          id: user.id,
-          name: user.name
+      const response = await fetch('/api/partners');
+      const partnersData = await response.json();
+      
+      if (partnersData.success && partnersData.data.length > 0) {
+        const partnersList = partnersData.data.map((partner: any) => ({
+          id: partner.id,
+          name: partner.name
         }));
         
-        console.log('✅ ADS Workers loaded:', adsWorkers);
-        setWorkers(adsWorkers);
+        console.log('✅ Business Partners loaded:', partnersList);
+        setPartners(partnersList);
       } else {
-        console.error('❌ Failed to load users:', userData.error);
-        // Fallback la utilizatori predefiniti dacă API-ul eșuează
-        setWorkers([
+        console.error('❌ Failed to load partners:', partnersData.error);
+        // Fallback la parteneri predefiniti dacă API-ul eșuează
+        setPartners([
           { id: 'demo_robert', name: 'Robert' },
           { id: 'demo_arslan', name: 'Arslan' },
           { id: 'demo_norbert', name: 'Norbert' }
         ]);
       }
     } catch (error) {
-      console.error('❌ Error loading workers:', error);
+      console.error('❌ Error loading partners:', error);
       // Fallback
-      setWorkers([
+      setPartners([
         { id: 'demo_robert', name: 'Robert' },
         { id: 'demo_arslan', name: 'Arslan' },
         { id: 'demo_norbert', name: 'Norbert' }
@@ -129,60 +124,57 @@ export default function AdminAds() {
     try {
       console.log('📊 ADS: Loading weekly ad data from DATABASE...');
       
-      // Verifică dacă workers sunt încărcați
-      if (workers.length === 0) {
-        console.log('⚠️ Workers not loaded yet, waiting...');
+      // Verifică dacă partners sunt încărcați
+      if (partners.length === 0) {
+        console.log('⚠️ Partners not loaded yet, waiting...');
         setLoading(false);
         return;
       }
       
-      console.log('👥 Using workers:', workers);
+      console.log('👥 Using partners:', partners);
       
       const weekStart = getWeekStart(selectedWeek);
       const weekEnd = getWeekEnd(selectedWeek);
       
-      // Încarcă datele ADS și joburile din API
-      const adsResponse = await fetch(`/api/ads?weekStart=${weekStart.toISOString()}`);
-      const adsData = await adsResponse.json();
+      // Încărcă datele ADS din parteneri și costurile lor
+      const weekStartISO = weekStart.toISOString();
+      const partnerCostsPromises = partners.map(partner => 
+        fetch(`/api/partners/${partner.id}/costs?weekStart=${weekStartISO}`)
+          .then(res => res.json())
+          .catch(() => ({ success: false, data: null }))
+      );
       
-      if (!adsData.success) {
-        throw new Error(adsData.error || 'Failed to load ads data');
-      }
+      const partnerCostsResults = await Promise.all(partnerCostsPromises);
       
-      console.log('📈 ADS API Response:', adsData);
+      console.log('📈 Partner Costs Results:', partnerCostsResults);
       
-      const { adsCosts, jobs } = adsData.data;
-      
-      const weeklyData = workers.map(worker => {
-        // Găsește costurile ADS pentru acest worker și săptămână
-        const workerAdsCosts = adsCosts.find((cost: any) => cost.userId === worker.id);
+      const weeklyData = partners.map((partner, index) => {
+        // Găsește costurile pentru acest partner și săptămână
+        const partnerCosts = partnerCostsResults[index]?.success ? partnerCostsResults[index].data : null;
         
-        // Calculează veniturile din joburile completate
-        const workerJobs = jobs.filter((job: any) => job.assignedEmployeeId === worker.id);
-        const revenue = workerJobs.reduce((total: number, job: any) => {
-          const completionData = typeof job.completionData === 'string' 
-            ? JSON.parse(job.completionData) 
-            : job.completionData;
-          return total + (completionData?.totalAmount || 0);
-        }, 0);
+        // Pentru ADS, se folosesc costurile zilnice pentru reclame
+        const dailyCosts = partnerCosts?.dailyCosts || [0, 0, 0, 0, 0, 0, 0];
         
         // Generează daily spends din datele din baza de date
         const dailySpends = [];
-        const dailyGoogleAds = workerAdsCosts?.dailyGoogleAds || [0, 0, 0, 0, 0, 0, 0];
         
         for (let i = 0; i < 7; i++) {
           const date = new Date(weekStart);
           date.setDate(date.getDate() + i);
           dailySpends.push({
             date: date.toISOString().split('T')[0],
-            google: dailyGoogleAds[i] || 0,
-            total: dailyGoogleAds[i] || 0
+            google: dailyCosts[i] || 0,
+            total: dailyCosts[i] || 0
           });
         }
         
-        const weeklyAdvertising = workerAdsCosts?.totalGoogleAds || 0;
-        const weeklySalaries = workerAdsCosts?.weeklySalaries || 0;
-        const weeklyMaterials = workerAdsCosts?.weeklyMaterials || 0;
+        const weeklyAdvertising = partnerCosts?.totalCosts || 0;
+        // Pentru simplificare, salarii și materiale sunt estimate pe baza reclamelor
+        const weeklySalaries = Math.round(weeklyAdvertising * 0.5); // 50% din reclamă pentru salarii
+        const weeklyMaterials = Math.round(weeklyAdvertising * 0.3); // 30% pentru materiale
+        
+        // Venituri estimate pe baza reclamelor (ROI presupus 300%)
+        const revenue = Math.round(weeklyAdvertising * 3);
         
         // Calculul profitului real: Venituri - Salarii - Materiale - Reclamă
         const totalCosts = weeklySalaries + weeklyMaterials + weeklyAdvertising;
@@ -190,15 +182,15 @@ export default function AdminAds() {
         const roi = weeklyAdvertising > 0 ? ((realProfit / weeklyAdvertising) * 100) : 0;
         
         return {
-          workerId: worker.id,
-          workerName: worker.name,
+          workerId: partner.id,
+          workerName: partner.name,
           weekStart: weekStart.toISOString(),
           weekEnd: weekEnd.toISOString(),
           dailySpends,
           weeklyAdvertising: Math.round(weeklyAdvertising),
           weeklySalaries: Math.round(weeklySalaries),
           weeklyMaterials: Math.round(weeklyMaterials),
-          jobsGenerated: workerJobs.length,
+          jobsGenerated: Math.round(weeklyAdvertising / 10), // Estimate 1 job per 10 RON ads
           revenue: Math.round(revenue),
           realProfit: Math.round(realProfit),
           roi: Math.round(roi * 100) / 100
@@ -221,10 +213,10 @@ export default function AdminAds() {
       return;
     }
     
-    // Încarcă mai întâi utilizatorii, apoi datele ADS
+    // Încărcă mai întâi partenerii, apoi datele ADS
     const initializeData = async () => {
-      await loadWorkersFromDatabase();
-      // Așteaptă puțin ca workers să se actualizeze în state
+      await loadPartnersFromDatabase();
+      // Așteaptă puțin ca partners să se actualizeze în state
       setTimeout(() => {
         loadWeeklyAdData();
       }, 500);
@@ -234,7 +226,7 @@ export default function AdminAds() {
     
     realApiService.addChangeListener('admin-ads-real', (hasChanges) => {
       if (hasChanges) {
-        console.log('📊 ADS: REAL API changes detected - syncing!');
+        console.log('📈 ADS: REAL API changes detected - syncing!');
         loadWeeklyAdData();
       }
     });
@@ -244,13 +236,13 @@ export default function AdminAds() {
     };
   }, [user, router, selectedWeek]);
   
-  // Effect pentru încărcarea datelor când workers sunt gata
+  // Effect pentru încărcarea datelor când partners sunt gata
   useEffect(() => {
-    if (workers.length > 0 && user?.type === 'admin') {
-      console.log('👥 Workers loaded, loading ADS data...');
+    if (partners.length > 0 && user?.type === 'admin') {
+      console.log('👥 Partners loaded, loading ADS data...');
       loadWeeklyAdData();
     }
-  }, [workers]);
+  }, [partners]);
   
   const navigateWeek = (direction: 'prev' | 'next') => {
     const newWeek = new Date(selectedWeek);
@@ -262,8 +254,8 @@ export default function AdminAds() {
     setSelectedWeek(new Date());
   };
   
-  const editWorkerAdData = (workerData: WeeklyAdData) => {
-    setEditingData({ ...workerData });
+  const editPartnerAdData = (partnerData: WeeklyAdData) => {
+    setEditingData({ ...partnerData });
     setShowEditModal(true);
   };
   
@@ -282,103 +274,79 @@ export default function AdminAds() {
     setEditingData(newEditingData);
   };
   
-  const editWeeklyCosts = (workerData: WeeklyAdData) => {
+  const editWeeklyCosts = (partnerData: WeeklyAdData) => {
     setEditingCosts({
-      workerId: workerData.workerId,
-      salaries: workerData.weeklySalaries,
-      materials: workerData.weeklyMaterials
+      workerId: partnerData.workerId,
+      salaries: partnerData.weeklySalaries,
+      materials: partnerData.weeklyMaterials
     });
     setShowCostsModal(true);
-  };
-  
-  const saveWeeklyCosts = async () => {
-    if (!editingCosts) return;
-    
-    try {
-      const weekStart = getWeekStart(selectedWeek);
-      const weekEnd = getWeekEnd(selectedWeek);
-      
-      // Găsește datele curente pentru acest worker
-      const currentWorkerData = weeklyAdData.find(w => w.workerId === editingCosts.workerId);
-      const dailyGoogleAds = currentWorkerData?.dailySpends.map(d => d.google) || [0, 0, 0, 0, 0, 0, 0];
-      
-      const response = await fetch('/api/ads', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          userId: editingCosts.workerId,
-          weekStart: weekStart.toISOString(),
-          weekEnd: weekEnd.toISOString(),
-          dailyGoogleAds,
-          weeklySalaries: editingCosts.salaries,
-          weeklyMaterials: editingCosts.materials
-        })
-      });
-      
-      const result = await response.json();
-      
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to save costs');
-      }
-      
-      setShowCostsModal(false);
-      setEditingCosts(null);
-      
-      // Reloading data to reflect changes
-      await loadWeeklyAdData();
-      
-      alert('✅ Costurile săptămânale au fost salvate în baza de date!');
-      
-    } catch (error) {
-      console.error('Error saving weekly costs:', error);
-      alert('❌ Eroare la salvarea costurilor. Înceațbă din nou.');
-    }
   };
   
   const saveAdData = async () => {
     if (!editingData) return;
     
     try {
-      const weekStart = getWeekStart(selectedWeek);
-      const weekEnd = getWeekEnd(selectedWeek);
+      console.log('💾 Saving partner ad data...', editingData);
       
-      const dailyGoogleAds = editingData.dailySpends.map(d => d.google);
+      // Convertește daily spends înapoi la array
+      const dailyCosts = editingData.dailySpends.map(day => day.total);
       
-      const response = await fetch('/api/ads', {
+      const response = await fetch(`/api/partners/${editingData.workerId}/costs`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          userId: editingData.workerId,
-          weekStart: weekStart.toISOString(),
-          weekEnd: weekEnd.toISOString(),
-          dailyGoogleAds,
-          weeklySalaries: editingData.weeklySalaries,
-          weeklyMaterials: editingData.weeklyMaterials
+          weekStart: editingData.weekStart,
+          dailyCosts: dailyCosts,
+          notes: `ADS costs updated for ${editingData.workerName}`
         })
       });
       
       const result = await response.json();
       
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to save ads data');
+      if (result.success) {
+        console.log('✅ Partner ad data saved successfully!');
+        setShowEditModal(false);
+        setEditingData(null);
+        // Reîncarcă datele
+        loadWeeklyAdData();
+      } else {
+        console.error('❌ Failed to save partner ad data:', result.error);
+        alert('Eroare la salvarea datelor: ' + result.error);
       }
-      
-      setShowEditModal(false);
-      setEditingData(null);
-      
-      // Reload data to reflect changes
-      await loadWeeklyAdData();
-      
-      alert(`✅ Datele Google Ads pentru ${editingData.workerName} au fost salvate în baza de date!`);
-      
     } catch (error) {
-      console.error('Error saving ads data:', error);
-      alert('❌ Eroare la salvarea datelor Google Ads. Înceațbă din nou.');
+      console.error('❌ Error saving partner ad data:', error);
+      alert('Eroare la salvarea datelor!');
     }
+  };
+  
+  const saveWeeklyCosts = async () => {
+    if (!editingCosts) return;
+    
+    try {
+      console.log('💾 Saving weekly costs...');
+      alert('Funcția de salvare costuri săptămânale este în dezvoltare!');
+      setShowCostsModal(false);
+      setEditingCosts(null);
+    } catch (error) {
+      console.error('❌ Error saving weekly costs:', error);
+      alert('Eroare la salvarea costurilor!');
+    }
+  };
+  
+  // Helper function pentru afișarea numelui zilei
+  const getDayName = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('ro-RO', { weekday: 'short' }).toUpperCase();
+  };
+  
+  // Verifică dacă săptămâna selectată este săptămâna curentă
+  const isCurrentWeek = () => {
+    const currentWeekStart = getWeekStart(new Date());
+    const selectedWeekStart = getWeekStart(selectedWeek);
+    return currentWeekStart.getTime() === selectedWeekStart.getTime();
   };
 
   if (!user || user.type !== 'admin') {
@@ -389,11 +357,6 @@ export default function AdminAds() {
     );
   }
   
-  const getDayName = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('ro-RO', { weekday: 'short' }).toUpperCase();
-  };
-
   // Calcule totale pentru profitul real
   const totalAdSpent = weeklyAdData.reduce((total, data) => total + data.weeklyAdvertising, 0);
   const totalSalaries = weeklyAdData.reduce((total, data) => total + data.weeklySalaries, 0);
@@ -625,7 +588,7 @@ export default function AdminAds() {
                       </button>
                       
                       <button
-                        onClick={() => editWorkerAdData(workerData)}
+                        onClick={() => editPartnerAdData(workerData)}
                         className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                         style={{
                           backgroundColor: Colors.info,

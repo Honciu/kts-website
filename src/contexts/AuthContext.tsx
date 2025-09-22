@@ -86,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       let newUser: User | null = null;
       
       if (type === 'worker') {
-        let employees = [...DEMO_EMPLOYEES];
+        let employees: any[] = [...DEMO_EMPLOYEES];
         
         // Try to load from localStorage for persistence
         try {
@@ -119,7 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (!employee) {
           const availableUsernames = employees.map((e: any) => e.username || e.name).filter(Boolean).join(', ');
-          throw new Error(`❌ Username "${credentials.username}" nu a fost găsit.\n\n✅ Usernames disponibile: ${availableUsernames || 'demo (parola: demo123), lacatus01 (parola: worker123)'}`);
+          throw new Error(`❌ Username "${credentials.username}" nu a fost găsit.\n\n✅ Usernames disponibile din baza de date: ${availableUsernames || 'Niciun angajat găsit - contactați administratorul'}`);
         }
         
         if (employee.password !== credentials.password) {
@@ -144,12 +144,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (credentials.id === DEMO_ACCOUNTS.admin.id && credentials.password === DEMO_ACCOUNTS.admin.password) {
           console.log('✅ Admin login successful');
           newUser = DEMO_ACCOUNTS.admin.user;
-        } else if (credentials.id === DEMO_ACCOUNTS.manager.id && credentials.password === DEMO_ACCOUNTS.manager.password) {
-          console.log('✅ Manager login successful');
-          newUser = DEMO_ACCOUNTS.manager.user;
         } else {
           console.log('❌ Invalid admin credentials');
-          throw new Error('ID sau parolă administrativ incorectă');
+          throw new Error(`ID sau parolă administrativ incorectă.\n\n✅ Credentăialele corecte sunt:\nUser: 123\nPassword: 123`);
         }
       } else if (type === 'client') {
         // For demo purposes, allow any client login

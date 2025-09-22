@@ -578,24 +578,55 @@ export default function CompleteJob() {
                     </option>
                   ))}
                 </select>
+                
+                {completionData.bankAccount && (
+                  <div className="mt-2 p-3 rounded border" style={{ 
+                    backgroundColor: Colors.background, 
+                    borderColor: Colors.info 
+                  }}>
+                    <div className="flex items-center gap-2">
+                      <Building size={16} color={Colors.info} />
+                      <span className="text-sm font-medium" style={{ color: Colors.text }}>
+                        Cont selectat: {bankAccounts.find(acc => acc.value === completionData.bankAccount)?.label}
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
             {completionData.paymentMethod === 'bank_transfer' && (
-              <div className="mt-4 p-4 rounded-lg border" style={{ 
-                backgroundColor: Colors.surfaceLight,
-                borderColor: Colors.warning 
-              }}>
-                <div className="flex items-start gap-3">
-                  <AlertCircle size={20} color={Colors.warning} className="flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-medium text-sm" style={{ color: Colors.text }}>
-                      Atenție: Transfer Bancar
-                    </p>
-                    <p className="text-sm" style={{ color: Colors.textSecondary }}>
-                      Plățile prin transfer bancar trebuie aprobate de administrator înainte să apară în câștigurile tale.
-                    </p>
+              <div className="mt-4 space-y-3">
+                <div className="p-4 rounded-lg border" style={{ 
+                  backgroundColor: Colors.surfaceLight,
+                  borderColor: Colors.warning 
+                }}>
+                  <div className="flex items-start gap-3">
+                    <AlertCircle size={20} color={Colors.warning} className="flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-medium text-sm" style={{ color: Colors.text }}>
+                        ⚡ Transfer Bancar - Aprobare Necesară
+                      </p>
+                      <p className="text-sm mt-1" style={{ color: Colors.textSecondary }}>
+                        Plățile prin transfer bancar trebuie aprobate de administrator înainte să apară în câștigurile tale.
+                      </p>
+                    </div>
                   </div>
+                </div>
+                
+                <div className="p-4 rounded-lg border" style={{
+                  backgroundColor: Colors.background,
+                  borderColor: Colors.info
+                }}>
+                  <h4 className="font-medium text-sm mb-2" style={{ color: Colors.text }}>
+                    💡 Informații importante pentru transfer bancar:
+                  </h4>
+                  <ul className="text-xs space-y-1" style={{ color: Colors.textSecondary }}>
+                    <li>• Confirmă că ai primit confirmarea de transfer de la client</li>
+                    <li>• Fă o captură de ecran a confirmării dacă este posibil</li>
+                    <li>• Lucrarea va avea status "În așteptarea aprobării"</li>
+                    <li>• Câștigul va fi adăugat în cont după aprobare</li>
+                  </ul>
                 </div>
               </div>
             )}

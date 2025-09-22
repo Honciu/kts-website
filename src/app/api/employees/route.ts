@@ -15,6 +15,8 @@ export async function GET() {
         email: true,
         phone: true,
         isActive: true,
+        type: true,
+        salaryPercentage: true,
         createdAt: true,
         updatedAt: true
       },
@@ -52,11 +54,13 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { name, email, phone, password } = body
+    console.log('➕ API: Creating new employee:', body)
+    
+    const { name, email, phone, password, type, salaryPercentage, isActive } = body
 
-    if (!name || !email || !password) {
+    if (!name || !email) {
       return NextResponse.json(
-        { success: false, error: 'Name, email and password are required' },
+        { success: false, error: 'Numele și email-ul sunt obligatorii' },
         { status: 400 }
       )
     }
@@ -68,13 +72,13 @@ export async function POST(request: NextRequest) {
 
     if (existingUser) {
       return NextResponse.json(
-        { success: false, error: 'Email already exists' },
+        { success: false, error: 'Un utilizator cu acest email există deja' },
         { status: 400 }
       )
     }
 
     // Hash password
-    const hashedPassword = await bcrypt.hash(password, 12)
+    const hashedPassword = await bcrypt.hash(password || 'temp123', 12)
 
     const newEmployee = await prisma.user.create({
       data: {
@@ -82,23 +86,43 @@ export async function POST(request: NextRequest) {
         email,
         phone: phone || null,
         password: hashedPassword,
-        type: 'WORKER',
-        isActive: true
+        type: type || 'WORKER',
+        salaryPercentage: salaryPercentage || 30,
+        isActive: isActive !== undefined ? isActive : true
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        isActive: true,
+        type: true,
+        salaryPercentage: true,
+        createdAt: true,
+        updatedAt: true
       }
     })
 
-    // Remove password from response
-    const { password: _, ...employeeResponse } = newEmployee
+    console.log('✅ API: Employee created successfully:', newEmployee.id)
 
     return NextResponse.json({
       success: true,
-      data: employeeResponse,
+      data: newEmployee,
       timestamp: new Date().toISOString()
     })
-  } catch (error) {
-    console.error('Error creating employee:', error)
+  } catch (error: any) {
+    console.error('❌ API Error creating employee:', error)
+    
+    // Handle Prisma unique constraint errors
+    if (error.code === 'P2002') {
+      return NextResponse.json(
+        { success: false, error: 'Un utilizator cu acest email există deja' },
+        { status: 400 }
+      )
+    }
+    
     return NextResponse.json(
-      { success: false, error: 'Failed to create employee' },
+      { success: false, error: 'Eroare la crearea angajatului' },
       { status: 500 }
     )
   }

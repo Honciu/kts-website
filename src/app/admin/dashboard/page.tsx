@@ -16,24 +16,47 @@ import {
   X,
   LogOut,
   Settings,
-  Calendar
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  TrendingUp,
+  CreditCard,
+  Banknote,
+  Building2,
+  Calculator,
+  UserCheck,
+  Plus,
+  Edit
 } from 'lucide-react';
 
-interface DashboardStats {
-  activeJobs: number;
-  activeEmployees: number;
-  weeklyRevenue: number;
-  weeklyExpenses: number;
-  weeklyMaterialCosts: number;
-  weeklyAdSpend: number;
-  weeklyProfit: number;
+interface FinancialStats {
+  totalRevenue: number;
+  cashRevenue: number;
+  cardRevenue: number;
+  bankTransferRevenue: number;
+  tvaAmount: number;
+  cardPaymentDetails: {[key: string]: number};
+  bankTransferDetails: {[key: string]: number};
+  totalSalaries: number;
+  totalMaterials: number;
+  totalAdsSpend: number;
+  cashToCollect: number;
+  netProfit: number;
 }
 
-interface RecentActivity {
-  id: string;
-  message: string;
-  type: 'success' | 'info' | 'warning';
-  timestamp: string;
+interface PartnerEarnings {
+  name: string;
+  profitShare: number; // Profit / 3
+  weeklyCosts: number; // Reclame (pentru formula corectă)
+  accountDeduction: number; // Încăsări card/transfer de pe contul lor
+  totalEarnings: number; // profitShare + weeklyCosts - accountDeduction
+}
+
+interface DashboardData {
+  activeJobs: number;
+  activeEmployees: number;
+  financialStats: FinancialStats;
+  partnerEarnings: PartnerEarnings[];
 }
 
 export default function AdminDashboard() {
@@ -41,16 +64,44 @@ export default function AdminDashboard() {
   const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
+  const [selectedWeek, setSelectedWeek] = useState(new Date());
+  const [dashboardData, setDashboardData] = useState<DashboardData>({
     activeJobs: 0,
     activeEmployees: 0,
-    weeklyRevenue: 0,
-    weeklyExpenses: 0,
-    weeklyMaterialCosts: 0,
-    weeklyAdSpend: 0,
-    weeklyProfit: 0
+    financialStats: {
+      totalRevenue: 0,
+      cashRevenue: 0,
+      cardRevenue: 0,
+      bankTransferRevenue: 0,
+      tvaAmount: 0,
+      cardPaymentDetails: {},
+      bankTransferDetails: {},
+      totalSalaries: 0,
+      totalMaterials: 0,
+      totalAdsSpend: 0,
+      cashToCollect: 0,
+      netProfit: 0
+    },
+    partnerEarnings: []
   });
-  const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
+  
+  // Call partner initialization when component mounts
+  const initializePartners = async () => {
+    try {
+      const response = await fetch('/api/partners/initialize', { method: 'POST' });
+      const result = await response.json();
+      console.log('🚀 Partners initialization result:', result);
+    } catch (error) {
+      console.error('❌ Error initializing partners:', error);
+    }
+  };
+  
+  // Initialize partners on first load
+  React.useEffect(() => {
+    initializePartners();
+  }, []);
+  const [showPartnerCostsModal, setShowPartnerCostsModal] = useState(false);
+  const [selectedPartner, setSelectedPartner] = useState<string | null>(null);
   const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -59,214 +110,174 @@ export default function AdminDashboard() {
     setIsRefreshing(true);
     
     if (forceRefresh) {
-      console.log('⚡ ADMIN DASHBOARD: FORCE REFRESH TRIGGERED!');
-      // Force sync from API first
+      console.log('⚡ COMPREHENSIVE DASHBOARD: FORCE REFRESH TRIGGERED!');
       await realApiService.forceSync();
     }
+    
     try {
-      // FORCE clear any mock data first
-      if (typeof window !== 'undefined') {
-        const mockKeys = ['kts_jobs_data', 'kts_notifications_data', 'kts_worker_location', 'kts_sync_data', 'kts_api_cache', 'kts_local_jobs'];
-        mockKeys.forEach(key => localStorage.removeItem(key));
-        console.log('🧹 Dashboard: Cleared all mock data from localStorage');
-      }
+      console.log('🏠 Comprehensive Dashboard: Loading all financial data...');
       
-      console.log('🏠 Dashboard: Loading REAL data ONLY from API...');
-      const [jobsResponse, usersResponse] = await Promise.all([
+      // Helper functions for week calculations
+      const getWeekStart = (date: Date) => {
+        const d = new Date(date);
+        const day = d.getDay();
+        const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+        d.setDate(diff);
+        d.setHours(0, 0, 0, 0);
+        return d;
+      };
+      
+      const weekStart = getWeekStart(selectedWeek);
+      const weekStartISO = weekStart.toISOString();
+      
+      console.log(`📅 Loading data for week: ${weekStart.toLocaleDateString('ro-RO')}`);
+      
+      // Load all data in parallel
+      const [jobsResponse, usersResponse, financialResponse, partnersResponse] = await Promise.all([
         realApiService.getJobs(),
-        fetch('/api/users').then(res => res.json())
+        fetch('/api/users').then(res => res.json()),
+        fetch(`/api/financial-stats?weekStart=${weekStartISO}`).then(res => res.json()),
+        fetch('/api/partners').then(res => res.json())
       ]);
       
+      let activeJobs = 0;
+      let activeEmployees = 0;
+      
+      // Calculate active jobs and employees
       if (jobsResponse.success) {
         const allJobs = jobsResponse.data;
+        activeJobs = allJobs.filter(job => !['completed', 'cancelled'].includes(job.status)).length;
         
-        console.log('📋 Dashboard REAL DATA ANALYSIS:');
-        console.log('  • Total jobs from API:', allJobs.length);
-        console.log('  • Full job data:', allJobs.map(j => ({
-          id: j.id,
-          status: j.status,
-          clientName: j.clientName,
-          serviceName: j.serviceName,
-          createdAt: j.createdAt,
-          completedAt: j.completedAt
-        })));
-        
-        const completedJobs = allJobs.filter(j => j.status === 'completed');
-        const activeJobsCalc = allJobs.filter(j => !['completed', 'cancelled'].includes(j.status));
-        
-        console.log('  • Completed jobs:', completedJobs.length);
-        console.log('  • Active jobs calculated:', activeJobsCalc.length);
-        console.log('  • Active jobs details:', activeJobsCalc.map(j => `#${j.id}: ${j.status} - ${j.serviceName}`));
-        
-        // Calculate active jobs (not completed or cancelled)
-        const activeJobs = allJobs.filter(job => 
-          !['completed', 'cancelled'].includes(job.status)
-        ).length;
-        
-        // Get TOTAL active employees from users API (not just those with jobs)
-        let activeEmployees = 0;
-        if (usersResponse.success) {
-          const allUsers = usersResponse.data;
-          const workers = allUsers.filter((user: any) => user.type === 'WORKER' && user.isActive);
-          activeEmployees = workers.length;
-          
-          console.log('👥 Users REAL DATA:');
-          console.log('  • Total users from API:', allUsers.length);
-          console.log('  • Active workers:', activeEmployees);
-          workers.forEach((worker: any) => {
-            console.log(`    - ${worker.name} (${worker.email})`);
-          });
-        } else {
-          console.error('❌ Users API failed, fallback to job-based calculation');
-          const activeEmployeeIds = new Set(
-            allJobs
-              .filter(job => !['completed', 'cancelled'].includes(job.status))
-              .map(job => job.assignedEmployeeId)
-          );
-          activeEmployees = activeEmployeeIds.size;
-        }
-        
-        // Helper functions for week calculations (same as ads page)
-        const getWeekStart = (date: Date) => {
-          const d = new Date(date);
-          const day = d.getDay();
-          const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday
-          return new Date(d.setDate(diff));
-        };
-        
-        const getWeekEnd = (date: Date) => {
-          const start = getWeekStart(date);
-          return new Date(start.getTime() + 6 * 24 * 60 * 60 * 1000);
-        };
-        
-        // Calculate current week boundaries
-        const currentWeekStart = getWeekStart(new Date());
-        const currentWeekEnd = getWeekEnd(new Date());
-        
-        console.log('📅 Week Boundaries:');
-        console.log(`  • Week start: ${currentWeekStart.toISOString()}`);
-        console.log(`  • Week end: ${currentWeekEnd.toISOString()}`);
-        
-        const weeklyJobs = allJobs.filter(job => {
-          const jobDate = new Date(job.completedAt || job.createdAt);
-          return ['completed', 'pending_approval'].includes(job.status) && jobDate >= currentWeekStart && jobDate <= currentWeekEnd;
-        });
-        
-        console.log('📋 Weekly Jobs Calculation:');
-        console.log('  • Completed jobs this week:', weeklyJobs.length);
-        weeklyJobs.forEach(job => {
-          const total = job.completionData?.totalAmount || 0;
-          const commission = job.completionData?.workerCommission || 0;
-          console.log(`    - Job #${job.id}: ${total} RON total, ${commission} RON commission`);
-        });
-        
-        const weeklyRevenue = weeklyJobs.reduce((total, job) => {
-          return total + (job.completionData?.totalAmount || 0);
-        }, 0);
-        
-        const weeklyExpenses = weeklyJobs.reduce((total, job) => {
-          return total + (job.completionData?.workerCommission || 0);
-        }, 0);
-        
-        // Calculate ad spending for the CURRENT week (same logic as ads page)
-        const ADS_STORAGE_KEY = 'kts_ads_data';
-        let weeklyAdSpend = 0;
-        
-        if (typeof window !== 'undefined') {
-          try {
-            const savedAdsData = localStorage.getItem(ADS_STORAGE_KEY);
-            if (savedAdsData) {
-              const adsData = JSON.parse(savedAdsData);
-              const weekKey = currentWeekStart.toISOString().split('T')[0];
-              
-              console.log('📱 Ad Spend Calculation:');
-              console.log(`  • Current week key: ${weekKey}`);
-              console.log(`  • Available data keys:`, Object.keys(adsData));
-              
-              // Sum ad spending across all workers for this week
-              Object.keys(adsData).forEach(workerId => {
-                console.log(`  • Checking worker ${workerId}:`, adsData[workerId]);
-                if (adsData[workerId][weekKey]) {
-                  const workerAdSpend = adsData[workerId][weekKey].weeklyTotal || 0;
-                  weeklyAdSpend += workerAdSpend;
-                  console.log(`    - Added ${workerAdSpend} RON from worker ${workerId}`);
-                }
-              });
-              
-              console.log(`  • Total ad spend this week: ${weeklyAdSpend} RON`);
-            } else {
-              console.log('  • No ads data found in localStorage');
-            }
-          } catch (error) {
-            console.error('❌ Error loading ad spend data:', error);
-          }
-        }
-        
-        // Estimate material costs (approximately 15% of total revenue for locksmith services)
-        const weeklyMaterialCosts = Math.round(weeklyRevenue * 0.15);
-        
-        // Calculate profit: Incasari - Salarii - Materiale - Reclama = Profit
-        const totalCosts = weeklyExpenses + weeklyMaterialCosts + weeklyAdSpend;
-        const netProfit = weeklyRevenue - totalCosts;
-        
-        console.log('💰 Detailed Financial Summary (Formula: Incasari - Salarii - Materiale - Reclama):');
-        console.log(`  • 💰 Încăsări (Revenue): ${weeklyRevenue} RON`);
-        console.log(`  • 👥 Salarii (Worker Expenses): ${weeklyExpenses} RON`);
-        console.log(`  • 🔧 Materiale (15% estimate): ${weeklyMaterialCosts} RON`);
-        console.log(`  • 📱 Reclame (Ad Spend): ${weeklyAdSpend} RON`);
-        console.log(`  • 📋 Total Costuri: ${totalCosts} RON`);
-        console.log(`  • ✨ PROFIT NET: ${netProfit} RON`);
-        
-        const weeklyProfit = netProfit;
-        
-        setDashboardStats({
-          activeJobs,
-          activeEmployees,
-          weeklyRevenue,
-          weeklyExpenses, // salarii
-          weeklyMaterialCosts, // materiale
-          weeklyAdSpend, // reclame
-          weeklyProfit
-        });
-        
-        // Generate recent activities from actual jobs
-        const recentCompletedJobs = allJobs
-          .filter(job => job.status === 'completed')
-          .sort((a, b) => new Date(b.completedAt || b.createdAt).getTime() - new Date(a.completedAt || a.createdAt).getTime())
-          .slice(0, 3);
-        
-        const activities: RecentActivity[] = recentCompletedJobs.map(job => ({
-          id: job.id,
-          message: `Lucrarea #${job.id} a fost finalizată de ${job.assignedEmployeeName}`,
-          type: 'success' as const,
-          timestamp: job.completedAt || job.createdAt
-        }));
-        
-        // Add recent new jobs
-        const recentNewJobs = allJobs
-          .filter(job => job.status === 'assigned')
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-          .slice(0, 2);
-        
-        recentNewJobs.forEach(job => {
-          activities.push({
-            id: job.id + '_new',
-            message: `Nouă lucrare adăugată pentru ${job.address}`,
-            type: 'info' as const,
-            timestamp: job.createdAt
-          });
-        });
-        
-        // Sort by timestamp and limit to 5
-        activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-        setRecentActivities(activities.slice(0, 5));
-        
-        console.log('✅ Dashboard: Real data loaded successfully!');
-      } else {
-        console.error('❌ Dashboard: API error:', jobsResponse.error);
+        console.log(`📋 Found ${activeJobs} active jobs`);
       }
+      
+      if (usersResponse.success) {
+        const workers = usersResponse.data.filter((user: any) => user.type === 'WORKER' && user.isActive);
+        activeEmployees = workers.length;
+        
+        console.log(`👥 Found ${activeEmployees} active employees`);
+      }
+      
+      // Get financial stats
+      let financialStats: FinancialStats = {
+        totalRevenue: 0,
+        cashRevenue: 0,
+        cardRevenue: 0,
+        bankTransferRevenue: 0,
+        tvaAmount: 0,
+        cardPaymentDetails: { 'KTS': 0, 'Urgente_Deblocari': 0, 'Lacatusul_Priceput': 0 },
+        bankTransferDetails: { 'KTS': 0, 'Urgente_Deblocari': 0, 'Lacatusul_Priceput': 0 },
+        totalSalaries: 0,
+        totalMaterials: 0,
+        totalAdsSpend: 0,
+        cashToCollect: 0,
+        netProfit: 0
+      };
+      
+      if (financialResponse.success) {
+        const stats = financialResponse.data;
+        financialStats = {
+          totalRevenue: stats.totalRevenue || 0,
+          cashRevenue: stats.cashRevenue || 0,
+          cardRevenue: stats.cardRevenue || 0,
+          bankTransferRevenue: stats.bankTransferRevenue || 0,
+          tvaAmount: stats.tvaAmount || 0,
+          cardPaymentDetails: stats.cardPaymentDetails || { 'KTS': 0, 'Urgente_Deblocari': 0, 'Lacatusul_Priceput': 0 },
+          bankTransferDetails: stats.bankTransferDetails || { 'KTS': 0, 'Urgente_Deblocari': 0, 'Lacatusul_Priceput': 0 },
+          totalSalaries: stats.totalSalaries || 0,
+          totalMaterials: stats.totalMaterials || 0,
+          totalAdsSpend: stats.totalAdsSpend || 0,
+          cashToCollect: stats.cashToCollect || 0,
+          netProfit: stats.netProfit || 0
+        };
+        
+        console.log('💰 Financial Stats Loaded:', financialStats);
+      }
+      
+      // Calculate partner earnings
+      let partnerEarnings: PartnerEarnings[] = [];
+      
+      if (partnersResponse.success && partnersResponse.data.length > 0) {
+        const partners = partnersResponse.data;
+        console.log(`👥 Found ${partners.length} business partners`);
+        
+        // Load weekly costs for each partner with correct formula
+        const partnerCostsPromises = partners.map(async (partner: any) => {
+          const costsResponse = await fetch(`/api/partners/${partner.id}/costs?weekStart=${weekStartISO}`);
+          const costsData = await costsResponse.json();
+          
+          const weeklyCosts = costsData.success ? costsData.data.totalCosts || 0 : 0;
+          const profitShare = Math.round(financialStats.netProfit / 3); // Împărțit la 3 asociați
+          
+          // Calculate earnings with correct formula: PROFIT + RECLAME - Incăsări card/transfer de pe contul lor
+          let accountDeduction = 0;
+          
+          if (partner.name === 'Robert') {
+            // Robert: Scade încăsările card + transfer de pe contul KTS
+            accountDeduction = (financialStats.cardPaymentDetails?.['KTS'] || 0) + 
+                             (financialStats.bankTransferDetails?.['KTS'] || 0);
+          } else if (partner.name === 'Arslan') {
+            // Arslan: Scade încăsările card + transfer de pe contul Urgente Deblocari
+            accountDeduction = (financialStats.cardPaymentDetails?.['Urgente_Deblocari'] || 0) + 
+                             (financialStats.bankTransferDetails?.['Urgente_Deblocari'] || 0);
+          } else if (partner.name === 'Norbert') {
+            // Norbert: Scade încăsările card + transfer de pe contul Lacatusul Priceput
+            accountDeduction = (financialStats.cardPaymentDetails?.['Lacatusul_Priceput'] || 0) + 
+                             (financialStats.bankTransferDetails?.['Lacatusul_Priceput'] || 0);
+          }
+          
+          const totalEarnings = profitShare + financialStats.totalAdsSpend - accountDeduction;
+          
+          return {
+            name: partner.name,
+            profitShare: profitShare,
+            weeklyCosts: financialStats.totalAdsSpend, // Reclame
+            accountDeduction: accountDeduction,
+            totalEarnings: totalEarnings
+          };
+        });
+        
+        partnerEarnings = await Promise.all(partnerCostsPromises);
+        console.log('👥 Partner Earnings Calculated:', partnerEarnings);
+      } else {
+        // Default partners if none in database
+        const profitShare = Math.round(financialStats.netProfit / 3);
+        partnerEarnings = [
+          { 
+            name: 'Robert', 
+            profitShare, 
+            weeklyCosts: financialStats.totalAdsSpend,
+            accountDeduction: (financialStats.cardPaymentDetails?.['KTS'] || 0) + (financialStats.bankTransferDetails?.['KTS'] || 0),
+            totalEarnings: profitShare + financialStats.totalAdsSpend - ((financialStats.cardPaymentDetails?.['KTS'] || 0) + (financialStats.bankTransferDetails?.['KTS'] || 0))
+          },
+          { 
+            name: 'Arslan', 
+            profitShare, 
+            weeklyCosts: financialStats.totalAdsSpend,
+            accountDeduction: (financialStats.cardPaymentDetails?.['Urgente_Deblocari'] || 0) + (financialStats.bankTransferDetails?.['Urgente_Deblocari'] || 0),
+            totalEarnings: profitShare + financialStats.totalAdsSpend - ((financialStats.cardPaymentDetails?.['Urgente_Deblocari'] || 0) + (financialStats.bankTransferDetails?.['Urgente_Deblocari'] || 0))
+          },
+          { 
+            name: 'Norbert', 
+            profitShare, 
+            weeklyCosts: financialStats.totalAdsSpend,
+            accountDeduction: (financialStats.cardPaymentDetails?.['Lacatusul_Priceput'] || 0) + (financialStats.bankTransferDetails?.['Lacatusul_Priceput'] || 0),
+            totalEarnings: profitShare + financialStats.totalAdsSpend - ((financialStats.cardPaymentDetails?.['Lacatusul_Priceput'] || 0) + (financialStats.bankTransferDetails?.['Lacatusul_Priceput'] || 0))
+          }
+        ];
+      }
+      
+      setDashboardData({
+        activeJobs,
+        activeEmployees,
+        financialStats,
+        partnerEarnings
+      });
+      
+      console.log('✅ Comprehensive Dashboard: All data loaded successfully!');
+      
     } catch (error) {
-      console.error('❌ Dashboard: Error loading data:', error);
+      console.error('❌ Comprehensive Dashboard: Error loading data:', error);
     } finally {
       setLoading(false);
       setIsRefreshing(false);
@@ -283,37 +294,53 @@ export default function AdminDashboard() {
     loadDashboardData();
     
     // Add REAL API listener for real-time updates
-    realApiService.addChangeListener('admin-dashboard-real', (hasChanges) => {
+    realApiService.addChangeListener('admin-comprehensive-dashboard', (hasChanges) => {
       if (hasChanges) {
-        console.log('🏠 Dashboard: REAL API changes detected - syncing!');
+        console.log('🏠 Comprehensive Dashboard: REAL API changes detected - syncing!');
         loadDashboardData();
       }
     });
     
-    // Add localStorage listener for ads data changes
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'kts_ads_data') {
-        console.log('📱 Dashboard: Ads data changed - refreshing profit calculation!');
-        loadDashboardData();
-      }
-    };
-    
-    if (typeof window !== 'undefined') {
-      window.addEventListener('storage', handleStorageChange);
-    }
-    
     return () => {
-      console.log('🧽 Dashboard: Cleaning up listeners');
-      realApiService.removeChangeListener('admin-dashboard-real');
-      if (typeof window !== 'undefined') {
-        window.removeEventListener('storage', handleStorageChange);
-      }
+      console.log('🧹 Comprehensive Dashboard: Cleaning up listeners');
+      realApiService.removeChangeListener('admin-comprehensive-dashboard');
     };
-  }, [user, router]);
+  }, [user, router, selectedWeek]);
 
   const handleLogout = async () => {
     await logout();
     router.replace('/');
+  };
+  
+  // Week navigation helpers
+  const getWeekStart = (date: Date) => {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    d.setDate(diff);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  };
+  
+  const getWeekEnd = (date: Date) => {
+    const start = getWeekStart(date);
+    return new Date(start.getTime() + 6 * 24 * 60 * 60 * 1000);
+  };
+  
+  const formatWeekRange = (date: Date) => {
+    const start = getWeekStart(date);
+    const end = getWeekEnd(date);
+    return `${start.getDate()}.${(start.getMonth() + 1).toString().padStart(2, '0')} - ${end.getDate()}.${(end.getMonth() + 1).toString().padStart(2, '0')}.${end.getFullYear()}`;
+  };
+  
+  const navigateWeek = (direction: 'prev' | 'next') => {
+    const newWeek = new Date(selectedWeek);
+    newWeek.setDate(newWeek.getDate() + (direction === 'prev' ? -7 : 7));
+    setSelectedWeek(newWeek);
+  };
+  
+  const goToCurrentWeek = () => {
+    setSelectedWeek(new Date());
   };
 
   if (!user || user.type !== 'admin') {
@@ -333,50 +360,11 @@ export default function AdminDashboard() {
     { icon: Settings, label: 'Setări', path: '/admin/settings' },
   ];
 
-  const stats = [
-    { 
-      title: 'Lucrări Active', 
-      value: loading ? '...' : dashboardStats.activeJobs.toString(), 
-      color: Colors.info, 
-      icon: Briefcase 
-    },
-    { 
-      title: 'Angajați Activi', 
-      value: loading ? '...' : dashboardStats.activeEmployees.toString(), 
-      color: Colors.success, 
-      icon: Users 
-    },
-    { 
-      title: '💰 Încăsări Săptămânale', 
-      value: loading ? '...' : `${dashboardStats.weeklyRevenue.toLocaleString('ro-RO')} RON`, 
-      color: Colors.success, 
-      icon: DollarSign 
-    },
-    { 
-      title: '👥 Salarii', 
-      value: loading ? '...' : `${dashboardStats.weeklyExpenses.toLocaleString('ro-RO')} RON`, 
-      color: Colors.warning, 
-      icon: Users 
-    },
-    { 
-      title: '🔧 Materiale', 
-      value: loading ? '...' : `${dashboardStats.weeklyMaterialCosts.toLocaleString('ro-RO')} RON`, 
-      color: Colors.info, 
-      icon: Settings 
-    },
-    { 
-      title: '📱 Reclame', 
-      value: loading ? '...' : `${dashboardStats.weeklyAdSpend.toLocaleString('ro-RO')} RON`, 
-      color: Colors.error, 
-      icon: DollarSign 
-    },
-    { 
-      title: '✨ PROFIT NET', 
-      value: loading ? '...' : `${dashboardStats.weeklyProfit.toLocaleString('ro-RO')} RON`, 
-      color: Colors.secondary, 
-      icon: BarChart3 
-    },
-  ];
+  const isCurrentWeek = () => {
+    const currentWeekStart = getWeekStart(new Date());
+    const selectedWeekStart = getWeekStart(selectedWeek);
+    return currentWeekStart.getTime() === selectedWeekStart.getTime();
+  };
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: Colors.background }}>
@@ -525,77 +513,86 @@ export default function AdminDashboard() {
         {/* Main Content */}
         <main className="flex-1 p-4 md:p-6 w-full min-w-0">
           <div className="space-y-6">
-            {/* Welcome */}
-            <div>
-              <h2 className="text-2xl font-bold mb-2" style={{ color: Colors.text }}>
-                Bun venit, {user.name}!
-              </h2>
-              <p style={{ color: Colors.textSecondary }}>
-                Aici puteți gestiona toate aspectele afacerii dumneavoastră.
-              </p>
-            </div>
-            
-            {/* Current Week Indicator */}
-            <div
-              className="p-4 rounded-lg border"
-              style={{
-                backgroundColor: Colors.surface,
-                borderColor: Colors.secondary,
-                borderWidth: '2px',
-              }}
-            >
-              <div className="flex items-center justify-center gap-4">
-                <div className="flex items-center gap-3">
-                  <Calendar size={24} color={Colors.secondary} />
-                  <div>
-                    <h3 className="text-lg font-semibold" style={{ color: Colors.text }}>
-                      Săptămâna În Curs
-                    </h3>
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-2 h-2 rounded-full animate-pulse"
-                        style={{ backgroundColor: Colors.secondary }}
-                      ></div>
-                      <span className="text-sm" style={{ color: Colors.textSecondary }}>
-                        Live Data
-                      </span>
-                    </div>
+            {/* Header with Week Navigation */}
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-bold mb-2" style={{ color: Colors.text }}>
+                  Dashboard Financiar Complet
+                </h2>
+                <p style={{ color: Colors.textSecondary }}>
+                  Vizualizare completă a performanței financiare săptămânale
+                </p>
+              </div>
+              
+              {/* Week Navigation */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => navigateWeek('prev')}
+                  className="p-2 rounded-lg border transition-colors"
+                  style={{
+                    backgroundColor: Colors.surface,
+                    borderColor: Colors.border,
+                    color: Colors.textSecondary
+                  }}
+                  title="Săptămâna anterioară"
+                >
+                  <ChevronLeft size={20} />
+                </button>
+                
+                <div 
+                  className="px-4 py-2 rounded-lg border text-center min-w-[180px]"
+                  style={{
+                    backgroundColor: isCurrentWeek() ? Colors.secondary : Colors.surface,
+                    borderColor: isCurrentWeek() ? Colors.secondary : Colors.border,
+                    color: isCurrentWeek() ? Colors.background : Colors.text
+                  }}
+                >
+                  <div className="font-semibold text-sm">
+                    {formatWeekRange(selectedWeek)}
                   </div>
+                  {isCurrentWeek() && (
+                    <div className="text-xs opacity-90">Săptămâna curentă</div>
+                  )}
                 </div>
-                <div className="text-center">
-                  <p className="text-xl font-bold" style={{ color: Colors.secondary }}>
-                    {(() => {
-                      const now = new Date();
-                      const getWeekStart = (date: Date) => {
-                        const d = new Date(date);
-                        const day = d.getDay();
-                        const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-                        return new Date(d.setDate(diff));
-                      };
-                      const getWeekEnd = (date: Date) => {
-                        const start = getWeekStart(date);
-                        return new Date(start.getTime() + 6 * 24 * 60 * 60 * 1000);
-                      };
-                      const weekStart = getWeekStart(now);
-                      const weekEnd = getWeekEnd(now);
-                      return `${weekStart.getDate()}.${(weekStart.getMonth() + 1).toString().padStart(2, '0')} - ${weekEnd.getDate()}.${(weekEnd.getMonth() + 1).toString().padStart(2, '0')}.${weekEnd.getFullYear()}`;
-                    })()
-                  }
-                  </p>
-                  <p className="text-sm" style={{ color: Colors.textSecondary }}>
-                    Toate datele financiare sunt pentru această perioadă
-                  </p>
-                </div>
+                
+                <button
+                  onClick={() => navigateWeek('next')}
+                  className="p-2 rounded-lg border transition-colors"
+                  style={{
+                    backgroundColor: Colors.surface,
+                    borderColor: Colors.border,
+                    color: Colors.textSecondary
+                  }}
+                  title="Săptămâna următoare"
+                >
+                  <ChevronRight size={20} />
+                </button>
+                
+                {!isCurrentWeek() && (
+                  <button
+                    onClick={goToCurrentWeek}
+                    className="ml-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                    style={{
+                      backgroundColor: Colors.info,
+                      color: Colors.background
+                    }}
+                  >
+                    Acum
+                  </button>
+                )}
               </div>
             </div>
-
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 md:gap-6">
-              {stats.map((stat, index) => {
-                const Icon = stat.icon;
-                return (
+            
+            {loading ? (
+              <div className="p-8 text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 mx-auto mb-4" style={{ borderColor: Colors.secondary }}></div>
+                <p className="text-lg font-medium" style={{ color: Colors.text }}>Se încarcă datele financiare...</p>
+              </div>
+            ) : (
+              <>
+                {/* Basic Stats Row */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div
-                    key={index}
                     className="p-6 rounded-lg border"
                     style={{
                       backgroundColor: Colors.surface,
@@ -603,115 +600,361 @@ export default function AdminDashboard() {
                     }}
                   >
                     <div className="flex items-center justify-between mb-4">
-                      <Icon size={24} color={stat.color} />
+                      <Briefcase size={24} color={Colors.info} />
                       <span className="text-2xl font-bold" style={{ color: Colors.text }}>
-                        {stat.value}
+                        {dashboardData.activeJobs}
                       </span>
                     </div>
                     <p className="font-medium" style={{ color: Colors.textSecondary }}>
-                      {stat.title}
+                      Lucrări Active
                     </p>
                   </div>
-                );
-              })}
-            </div>
-
-            {/* Quick Actions */}
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
-              <div
-                className="p-6 rounded-lg border cursor-pointer hover:bg-opacity-80 transition-colors"
-                style={{
-                  backgroundColor: Colors.surface,
-                  borderColor: Colors.border,
-                }}
-                onClick={() => router.push('/admin/jobs')}
-              >
-                <Briefcase size={32} color={Colors.secondary} className="mb-4" />
-                <h3 className="text-lg font-semibold mb-2" style={{ color: Colors.text }}>
-                  Gestionează Lucrări
-                </h3>
-                <p style={{ color: Colors.textSecondary }}>
-                  Atribuie și monitorizează lucrările active
-                </p>
-              </div>
-
-              <div
-                className="p-6 rounded-lg border cursor-pointer hover:bg-opacity-80 transition-colors"
-                style={{
-                  backgroundColor: Colors.surface,
-                  borderColor: Colors.border,
-                }}
-                onClick={() => router.push('/admin/employees')}
-              >
-                <Users size={32} color={Colors.success} className="mb-4" />
-                <h3 className="text-lg font-semibold mb-2" style={{ color: Colors.text }}>
-                  Gestionează Angajați
-                </h3>
-                <p style={{ color: Colors.textSecondary }}>
-                  Adaugă și editează informațiile angajaților
-                </p>
-              </div>
-
-              <div
-                className="p-6 rounded-lg border cursor-pointer hover:bg-opacity-80 transition-colors"
-                style={{
-                  backgroundColor: Colors.surface,
-                  borderColor: Colors.border,
-                }}
-                onClick={() => router.push('/admin/reports')}
-              >
-                <FileText size={32} color={Colors.warning} className="mb-4" />
-                <h3 className="text-lg font-semibold mb-2" style={{ color: Colors.text }}>
-                  Rapoarte
-                </h3>
-                <p style={{ color: Colors.textSecondary }}>
-                  Vizualizează rapoarte și statistici
-                </p>
-              </div>
-            </div>
-
-            {/* Recent Activity */}
-            <div
-              className="p-6 rounded-lg border"
-              style={{
-                backgroundColor: Colors.surface,
-                borderColor: Colors.border,
-              }}
-            >
-              <h3 className="text-lg font-semibold mb-4" style={{ color: Colors.text }}>
-                Activitate Recentă
-              </h3>
-              {loading ? (
-                <div className="p-4 text-center">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 mx-auto mb-2" style={{ borderColor: Colors.secondary }}></div>
-                  <p className="text-sm" style={{ color: Colors.textSecondary }}>Se încarcă activitatea...</p>
+                  
+                  <div
+                    className="p-6 rounded-lg border"
+                    style={{
+                      backgroundColor: Colors.surface,
+                      borderColor: Colors.border,
+                    }}
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                      <Users size={24} color={Colors.success} />
+                      <span className="text-2xl font-bold" style={{ color: Colors.text }}>
+                        {dashboardData.activeEmployees}
+                      </span>
+                    </div>
+                    <p className="font-medium" style={{ color: Colors.textSecondary }}>
+                      Angajați Activi
+                    </p>
+                  </div>
                 </div>
-              ) : recentActivities.length === 0 ? (
-                <div className="text-center p-4">
-                  <p style={{ color: Colors.textSecondary }}>Nu există activitate recentă.</p>
-                  <p className="text-sm mt-1" style={{ color: Colors.textMuted }}>Activitatea va apărea după ce vor fi create sau finalizate joburi.</p>
+                
+                {/* Financial Overview */}
+                <div
+                  className="p-6 rounded-lg border"
+                  style={{
+                    backgroundColor: Colors.surface,
+                    borderColor: Colors.secondary,
+                    borderWidth: '2px',
+                  }}
+                >
+                  <div className="flex items-center gap-3 mb-6">
+                    <TrendingUp size={28} color={Colors.secondary} />
+                    <div>
+                      <h3 className="text-xl font-bold" style={{ color: Colors.text }}>
+                        Prezentare Generală Financiară
+                      </h3>
+                      <p className="text-sm" style={{ color: Colors.textSecondary }}>
+                        Toate sumele sunt pentru săptămâna selectată
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    {/* Total Revenue */}
+                    <div className="text-center p-4 rounded-lg" style={{ backgroundColor: Colors.background }}>
+                      <div className="flex items-center justify-center mb-2">
+                        <DollarSign size={20} color={Colors.success} />
+                      </div>
+                      <div className="text-2xl font-bold mb-1" style={{ color: Colors.success }}>
+                        {dashboardData.financialStats.totalRevenue.toLocaleString('ro-RO')} RON
+                      </div>
+                      <div className="text-sm font-medium" style={{ color: Colors.textSecondary }}>
+                        Sume Încasate Total
+                      </div>
+                    </div>
+                    
+                    {/* Cash Revenue */}
+                    <div className="text-center p-4 rounded-lg" style={{ backgroundColor: Colors.background }}>
+                      <div className="flex items-center justify-center mb-2">
+                        <Banknote size={20} color={Colors.warning} />
+                      </div>
+                      <div className="text-2xl font-bold mb-1" style={{ color: Colors.warning }}>
+                        {dashboardData.financialStats.cashRevenue.toLocaleString('ro-RO')} RON
+                      </div>
+                      <div className="text-sm font-medium" style={{ color: Colors.textSecondary }}>
+                        Cash
+                      </div>
+                    </div>
+                    
+                    {/* TVA */}
+                    <div className="text-center p-4 rounded-lg" style={{ backgroundColor: Colors.background }}>
+                      <div className="flex items-center justify-center mb-2">
+                        <Calculator size={20} color={Colors.info} />
+                      </div>
+                      <div className="text-2xl font-bold mb-1" style={{ color: Colors.info }}>
+                        {dashboardData.financialStats.tvaAmount.toLocaleString('ro-RO')} RON
+                      </div>
+                      <div className="text-sm font-medium" style={{ color: Colors.textSecondary }}>
+                        TVA
+                      </div>
+                    </div>
+                    
+                    {/* Cash to Collect */}
+                    <div className="text-center p-4 rounded-lg" style={{ backgroundColor: Colors.background }}>
+                      <div className="flex items-center justify-center mb-2">
+                        <UserCheck size={20} color={Colors.secondary} />
+                      </div>
+                      <div className="text-2xl font-bold mb-1" style={{ color: Colors.secondary }}>
+                        {dashboardData.financialStats.cashToCollect.toLocaleString('ro-RO')} RON
+                      </div>
+                      <div className="text-sm font-medium" style={{ color: Colors.textSecondary }}>
+                        De Colectat Cash
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  {recentActivities.map((activity) => {
-                    const dotColor = activity.type === 'success' ? Colors.success : 
-                                   activity.type === 'info' ? Colors.info : Colors.warning;
-                    return (
-                      <div key={activity.id} className="flex items-center gap-3">
-                        <div
-                          className="w-2 h-2 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: dotColor }}
-                        ></div>
-                        <p style={{ color: Colors.textSecondary }}>
-                          {activity.message}
+                
+                {/* Payment Methods Details */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Card Payments */}
+                  <div
+                    className="p-6 rounded-lg border"
+                    style={{
+                      backgroundColor: Colors.surface,
+                      borderColor: Colors.border,
+                    }}
+                  >
+                    <div className="flex items-center gap-3 mb-4">
+                      <CreditCard size={24} color={Colors.info} />
+                      <div>
+                        <h4 className="text-lg font-semibold" style={{ color: Colors.text }}>
+                          Încăsări prin Card
+                        </h4>
+                        <p className="text-2xl font-bold" style={{ color: Colors.info }}>
+                          {dashboardData.financialStats.cardRevenue.toLocaleString('ro-RO')} RON
                         </p>
                       </div>
-                    );
-                  })}
+                    </div>
+                    
+                    <div className="space-y-3">
+                      {Object.entries(dashboardData.financialStats.cardPaymentDetails).map(([account, amount]) => (
+                        <div key={account} className="flex justify-between items-center p-3 rounded" style={{ backgroundColor: Colors.background }}>
+                          <span style={{ color: Colors.textSecondary }}>{account.replace('_', ' ')}</span>
+                          <span className="font-semibold" style={{ color: Colors.text }}>
+                            {amount.toLocaleString('ro-RO')} RON
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  {/* Bank Transfers */}
+                  <div
+                    className="p-6 rounded-lg border"
+                    style={{
+                      backgroundColor: Colors.surface,
+                      borderColor: Colors.border,
+                    }}
+                  >
+                    <div className="flex items-center gap-3 mb-4">
+                      <Building2 size={24} color={Colors.success} />
+                      <div>
+                        <h4 className="text-lg font-semibold" style={{ color: Colors.text }}>
+                          Transfer Bancar
+                        </h4>
+                        <p className="text-2xl font-bold" style={{ color: Colors.success }}>
+                          {dashboardData.financialStats.bankTransferRevenue.toLocaleString('ro-RO')} RON
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      {Object.entries(dashboardData.financialStats.bankTransferDetails).map(([account, amount]) => (
+                        <div key={account} className="flex justify-between items-center p-3 rounded" style={{ backgroundColor: Colors.background }}>
+                          <span style={{ color: Colors.textSecondary }}>{account.replace('_', ' ')}</span>
+                          <span className="font-semibold" style={{ color: Colors.text }}>
+                            {amount.toLocaleString('ro-RO')} RON
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-              )}
-            </div>
+                
+                {/* Costs and Profit */}
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                  <div
+                    className="p-6 rounded-lg border text-center"
+                    style={{
+                      backgroundColor: Colors.surface,
+                      borderColor: Colors.border,
+                    }}
+                  >
+                    <div className="text-2xl font-bold mb-2" style={{ color: Colors.warning }}>
+                      {dashboardData.financialStats.totalSalaries.toLocaleString('ro-RO')} RON
+                    </div>
+                    <p className="font-medium" style={{ color: Colors.textSecondary }}>
+                      Salarii Totale
+                    </p>
+                  </div>
+                  
+                  <div
+                    className="p-6 rounded-lg border text-center"
+                    style={{
+                      backgroundColor: Colors.surface,
+                      borderColor: Colors.border,
+                    }}
+                  >
+                    <div className="text-2xl font-bold mb-2" style={{ color: Colors.info }}>
+                      {dashboardData.financialStats.totalMaterials.toLocaleString('ro-RO')} RON
+                    </div>
+                    <p className="font-medium" style={{ color: Colors.textSecondary }}>
+                      Materiale
+                    </p>
+                  </div>
+                  
+                  <div
+                    className="p-6 rounded-lg border text-center"
+                    style={{
+                      backgroundColor: Colors.surface,
+                      borderColor: Colors.border,
+                    }}
+                  >
+                    <div className="text-2xl font-bold mb-2" style={{ color: Colors.error }}>
+                      {dashboardData.financialStats.totalAdsSpend.toLocaleString('ro-RO')} RON
+                    </div>
+                    <p className="font-medium" style={{ color: Colors.textSecondary }}>
+                      Costuri Reclame
+                    </p>
+                  </div>
+                  
+                  <div
+                    className="p-6 rounded-lg border text-center"
+                    style={{
+                      backgroundColor: Colors.secondary,
+                      borderColor: Colors.secondary,
+                    }}
+                  >
+                    <div className="text-2xl font-bold mb-2" style={{ color: Colors.background }}>
+                      {dashboardData.financialStats.netProfit.toLocaleString('ro-RO')} RON
+                    </div>
+                    <p className="font-medium" style={{ color: Colors.background }}>
+                      ✨ PROFIT NET
+                    </p>
+                  </div>
+                </div>
+                
+                {/* Partner Earnings */}
+                <div
+                  className="p-6 rounded-lg border"
+                  style={{
+                    backgroundColor: Colors.surface,
+                    borderColor: Colors.border,
+                  }}
+                >
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                      <Users size={24} color={Colors.secondary} />
+                      <h3 className="text-xl font-bold" style={{ color: Colors.text }}>
+                        Câștiguri Asociați
+                      </h3>
+                    </div>
+                    <button
+                      onClick={() => setShowPartnerCostsModal(true)}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors"
+                      style={{
+                        backgroundColor: Colors.secondary,
+                        color: Colors.background
+                      }}
+                    >
+                      <Edit size={16} />
+                      Gestionează Costurile
+                    </button>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {dashboardData.partnerEarnings.map((partner, index) => (
+                      <div
+                        key={index}
+                        className="p-4 rounded-lg border"
+                        style={{ backgroundColor: Colors.background, borderColor: Colors.border }}
+                      >
+                        <div className="text-center">
+                          <h4 className="text-lg font-semibold mb-3" style={{ color: Colors.text }}>
+                            {partner.name}
+                          </h4>
+                          
+                          <div className="space-y-2 mb-4">
+                            <div className="flex justify-between text-sm">
+                              <span style={{ color: Colors.textSecondary }}>Profit (1/3):</span>
+                              <span style={{ color: Colors.success }}>+{partner.profitShare.toLocaleString('ro-RO')} RON</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span style={{ color: Colors.textSecondary }}>Reclame:</span>
+                              <span style={{ color: Colors.success }}>+{partner.weeklyCosts.toLocaleString('ro-RO')} RON</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span style={{ color: Colors.textSecondary }}>Cont {partner.name}:</span>
+                              <span style={{ color: Colors.error }}>-{partner.accountDeduction.toLocaleString('ro-RO')} RON</span>
+                            </div>
+                          </div>
+                          
+                          <div className="pt-3 border-t" style={{ borderColor: Colors.border }}>
+                            <div className="text-xl font-bold" style={{ color: Colors.secondary }}>
+                              {partner.totalEarnings.toLocaleString('ro-RO')} RON
+                            </div>
+                            <div className="text-sm" style={{ color: Colors.textSecondary }}>
+                              Total de încasat
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
+          
+          {/* Partner Costs Management Modal - Placeholder for future implementation */}
+          {showPartnerCostsModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div 
+                className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto"
+                style={{ backgroundColor: Colors.surface }}
+              >
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xl font-bold" style={{ color: Colors.text }}>
+                    Gestionare Costuri Asociați
+                  </h2>
+                  <button
+                    onClick={() => setShowPartnerCostsModal(false)}
+                    className="p-2 rounded-lg hover:bg-opacity-80 transition-colors"
+                    style={{ backgroundColor: Colors.surfaceLight }}
+                  >
+                    <X size={20} color={Colors.textSecondary} />
+                  </button>
+                </div>
+                
+                <div className="text-center py-8">
+                  <Calendar size={48} color={Colors.textSecondary} className="mx-auto mb-4" />
+                  <p className="text-lg font-medium mb-2" style={{ color: Colors.text }}>
+                    Modul de Gestionare în Dezvoltare
+                  </p>
+                  <p style={{ color: Colors.textSecondary }}>
+                    Aici veți putea gestiona costurile zilnice pentru fiecare asociat (Robert, Arslan, Norbert) și site-urile lor.
+                  </p>
+                  <p className="mt-4 text-sm" style={{ color: Colors.textMuted }}>
+                    Săptămâna selectată: {formatWeekRange(selectedWeek)}
+                  </p>
+                </div>
+                
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => setShowPartnerCostsModal(false)}
+                    className="px-6 py-2 rounded-lg font-medium transition-colors"
+                    style={{
+                      backgroundColor: Colors.secondary,
+                      color: Colors.background
+                    }}
+                  >
+                    Închide
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </main>
       </div>
     </div>

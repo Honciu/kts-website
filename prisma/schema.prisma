@@ -195,3 +195,79 @@ model WeeklyAdsCosts {
   @@unique([userId, weekStart])
   @@map("weekly_ads_costs")
 }
+
+// Statistici financiare săptămânale comprehensive
+model WeeklyFinancialStats {
+  id                    String    @id @default(cuid())
+  
+  weekStart             DateTime
+  weekEnd               DateTime
+  
+  // Încăsări
+  totalRevenue          Int       @default(0)  // Suma totală încasată
+  cashRevenue           Int       @default(0)  // Încăsări cash
+  cardRevenue           Int       @default(0)  // Încăsări prin card
+  bankTransferRevenue   Int       @default(0)  // Încăsări prin transfer bancar
+  tvaAmount             Int       @default(0)  // TVA total
+  
+  // Detalii plăți electronice (JSON pentru flexibilitate)
+  cardPaymentDetails    Json?     // {"KTS": amount, "Urgente_Deblocari": amount, "Lacatusul_Priceput": amount}
+  bankTransferDetails   Json?     // {"KTS": amount, "Urgente_Deblocari": amount, "Lacatusul_Priceput": amount}
+  
+  // Costuri
+  totalSalaries         Int       @default(0)  // Salarii totale (comisioane lucrători)
+  totalMaterials        Int       @default(0)  // Materiale
+  totalAdsSpend         Int       @default(0)  // Costuri reclame
+  
+  // Suma de colectat cash de la lucrători
+  cashToCollect         Int       @default(0)
+  
+  // Profit calculat
+  netProfit             Int       @default(0)  // Încăsări - Salarii - Materiale - Reclame
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  
+  // Constraint pentru a evita duplicate-urile
+  @@unique([weekStart])
+  @@map("weekly_financial_stats")
+}
+
+// Asociații/Parteneri business
+model BusinessPartner {
+  id            String    @id @default(cuid())
+  name          String    // Robert, Arslan, Norbert
+  email         String?   
+  
+  // Costurile săptămânale pentru siturile acestui partener
+  weeklyCosts   PartnerWeeklyCosts[]
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  @@unique([name])
+  @@map("business_partners")
+}
+
+// Costurile săptămânale pentru fiecare partener
+model PartnerWeeklyCosts {
+  id          String          @id @default(cuid())
+  partnerId   String
+  partner     BusinessPartner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  
+  weekStart   DateTime
+  weekEnd     DateTime
+  
+  // Costurile zilnice pentru siturile partenerului
+  dailyCosts  Int[]           @default([0,0,0,0,0,0,0]) // [Luni, Marți, Miercuri, Joi, Vineri, Sâmbătă, Duminică]
+  totalCosts  Int             @default(0)  // Suma costurilor zilnice
+  
+  notes       String?         // Note suplimentare
+  
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  
+  // Constraint pentru a evita duplicate-urile
+  @@unique([partnerId, weekStart])
+  @@map("partner_weekly_costs")
+}
