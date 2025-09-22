@@ -4,7 +4,8 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Colors } from '@/constants/colors';
-import { jobService, type Job } from '@/utils/jobService';
+import { type Job } from '@/utils/jobService';
+import { realApiService } from '@/utils/realApiService';
 import { 
   ArrowLeft,
   Calendar,
@@ -43,34 +44,39 @@ export default function CompletedJobs() {
       return;
     }
     
-    // Load completed jobs from jobService
-    const loadCompletedJobs = () => {
-      const jobs = jobService.getCompletedJobsForWorker('worker1'); // În aplicația reală ar fi user.id
-      setCompletedJobs(jobs);
+    // Load completed jobs from REAL API
+    const loadCompletedJobs = async () => {
+      try {
+        const response = await realApiService.getJobs();
+        if (response.success) {
+          // Filter completed jobs for current user
+          const userJobs = response.data.filter(job => 
+            job.assignedEmployeeId === user.id && 
+            ['completed', 'pending_approval'].includes(job.status)
+          );
+          setCompletedJobs(userJobs);
+          console.log('✅ Worker Completed Jobs: Loaded', userJobs.length, 'completed jobs for', user.name);
+        } else {
+          console.error('❌ Worker Completed Jobs: API error:', response.error);
+        }
+      } catch (error) {
+        console.error('❌ Worker Completed Jobs: Error loading:', error);
+      }
     };
     
     loadCompletedJobs();
     
-    // Add listener for real-time updates
-    jobService.addListener('completed-jobs-page', {
-      onJobUpdate: (job, update) => {
-        if (['completed', 'pending_approval'].includes(job.status)) {
-          loadCompletedJobs();
-        }
-      },
-      onJobComplete: (job) => {
+    // Add REAL API listener for real-time updates
+    realApiService.addChangeListener('worker-completed-jobs', (hasChanges) => {
+      if (hasChanges) {
+        console.log('📋 Worker Completed Jobs: Real-time changes detected - syncing!');
         loadCompletedJobs();
-      },
-      onJobStatusChange: (jobId, oldStatus, newStatus) => {
-        if (['completed', 'pending_approval'].includes(newStatus)) {
-          loadCompletedJobs();
-        }
       }
     });
     
     // Cleanup listener
     return () => {
-      jobService.removeListener('completed-jobs-page');
+      realApiService.removeChangeListener('worker-completed-jobs');
     };
   }, [user, router]);
 
@@ -95,7 +101,13 @@ export default function CompletedJobs() {
 
   // Filtrează joburile pentru săptămâna selectată
   const getJobsForWeek = (week: Date) => {
-    return jobService.getCompletedJobsForWeek('worker1', week); // În aplicația reală ar fi user.id
+    const start = getWeekStart(week);
+    const end = getWeekEnd(week);
+    
+    return completedJobs.filter(job => {
+      const completionDate = new Date(job.completedAt || job.createdAt);
+      return completionDate >= start && completionDate <= end;
+    });
   };
 
   const weekJobs = getJobsForWeek(selectedWeek);
