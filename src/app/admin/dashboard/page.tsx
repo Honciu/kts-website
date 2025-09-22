@@ -96,14 +96,14 @@ export default function AdminDashboard() {
         // Generate recent activities from actual jobs
         const recentCompletedJobs = allJobs
           .filter(job => job.status === 'completed')
-          .sort((a, b) => new Date(b.completedAt || b.updatedAt).getTime() - new Date(a.completedAt || a.updatedAt).getTime())
+          .sort((a, b) => new Date(b.completedAt || b.createdAt).getTime() - new Date(a.completedAt || a.createdAt).getTime())
           .slice(0, 3);
         
         const activities: RecentActivity[] = recentCompletedJobs.map(job => ({
           id: job.id,
           message: `Lucrarea #${job.id} a fost finalizată de ${job.assignedEmployeeName}`,
           type: 'success' as const,
-          timestamp: job.completedAt || job.updatedAt
+          timestamp: job.completedAt || job.createdAt
         }));
         
         // Add recent new jobs
