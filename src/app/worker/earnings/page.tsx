@@ -58,9 +58,52 @@ export default function WorkerEarnings() {
         
         if (apiResponse.success) {
           const allJobs = apiResponse.data;
+          const workerId = user?.id || 'default-worker';
+          
+          console.log('💰 Worker Earnings DEBUG - ENHANCED:');
+          console.log('  - User from session:', user);
+          console.log('  - Worker ID (user.id):', workerId);
+          console.log('  - Total jobs from API:', allJobs.length);
+          console.log('  - All jobs details:', allJobs.map(j => ({ 
+              id: j.id, 
+              assignedTo: j.assignedEmployeeId, 
+              assignedName: j.assignedEmployeeName,
+              status: j.status,
+              completedAt: j.completedAt
+            })));
+          
+          console.log('🔎 EARNINGS FILTERING ANALYSIS:');
+          console.log(`  - Looking for jobs assigned to: "${workerId}"`);
+          console.log('  - Available assigned IDs:', [...new Set(allJobs.map(j => j.assignedEmployeeId))]);
           
           // Filtrează joburile pentru worker-ul curent
-          const workerJobs = allJobs.filter(job => job.assignedEmployeeId === user.id);
+          let workerJobs = allJobs.filter(job => job.assignedEmployeeId === workerId);
+          
+          console.log('🎯 EARNINGS FILTER RESULT:');
+          console.log(`  - Found ${workerJobs.length} jobs for worker ${workerId}`);
+          
+          // FALLBACK: Dacă nu găsește joburi cu ID-ul, încearcă cu numele
+          if (workerJobs.length === 0 && allJobs.length > 0 && user?.name) {
+            console.log('⚠️ EARNINGS: NO JOBS FOUND with ID! Trying fallback by name:');
+            console.log('  - User session ID:', user?.id);
+            console.log('  - Expected assignment ID in jobs:', allJobs[0]?.assignedEmployeeId);
+            console.log('  - User name:', user?.name);
+            
+            // Încearcă să găsească joburile după numele lucratorului
+            const fallbackJobs = allJobs.filter(job => 
+              job.assignedEmployeeName && user.name &&
+              job.assignedEmployeeName.toLowerCase().includes(user.name.toLowerCase())
+            );
+            
+            if (fallbackJobs.length > 0) {
+              console.log(`🎆 EARNINGS FALLBACK SUCCESS: Found ${fallbackJobs.length} jobs by name matching!`);
+              console.log('  - Fallback jobs:', fallbackJobs.map(j => `#${j.id} - ${j.serviceName} (${j.status})`));
+              workerJobs = fallbackJobs;
+            } else {
+              console.log('❌ EARNINGS FALLBACK FAILED: No jobs found by name either');
+              console.log('  - Available assigned names:', [...new Set(allJobs.map(j => j.assignedEmployeeName))]);
+            }
+          }
           
           // Calculeză săptămâna selectată
           const weekStart = getWeekStart(selectedWeek);
