@@ -202,10 +202,10 @@ export async function PUT(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   // PATCH face același lucru ca PUT pentru simplitate
-  return PUT(request, { params })
+  return PUT(request, context)
 }
 
 export async function DELETE(
