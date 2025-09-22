@@ -49,14 +49,8 @@ export default function WorkerEarnings() {
     travelOnlyJobs: 0
   });
 
-  useEffect(() => {
-    if (!user || user.type !== 'worker') {
-      router.replace('/');
-      return;
-    }
-    
-    // Load weekly financial report from REAL API
-    const loadWeeklyReport = async (forceRefresh = false) => {
+  // Load weekly financial report from REAL API
+  const loadWeeklyReport = React.useCallback(async (forceRefresh = false) => {
       setIsRefreshing(true);
       
       if (forceRefresh) {
@@ -198,6 +192,13 @@ export default function WorkerEarnings() {
         setLastRefreshTime(new Date());
       }
     };
+  }, [user, selectedWeek, showAllTime]);
+  
+  useEffect(() => {
+    if (!user || user.type !== 'worker') {
+      router.replace('/');
+      return;
+    }
     
     loadWeeklyReport(false);
     
@@ -231,7 +232,7 @@ export default function WorkerEarnings() {
       realApiService.removeChangeListener('worker-earnings-real');
       jobService.removeListener('worker-earnings-backup');
     };
-  }, [user, router, selectedWeek, showAllTime]);
+  }, [user, router, loadWeeklyReport]);
 
   if (!user || user.type !== 'worker') {
     return (
