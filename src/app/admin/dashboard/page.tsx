@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Colors } from '@/constants/colors';
+import { realApiService } from '@/utils/realApiService';
 import { 
   Wrench, 
   Users, 
@@ -17,15 +18,144 @@ import {
   Settings
 } from 'lucide-react';
 
+interface DashboardStats {
+  activeJobs: number;
+  activeEmployees: number;
+  weeklyRevenue: number;
+  weeklyProfit: number;
+}
+
+interface RecentActivity {
+  id: string;
+  message: string;
+  type: 'success' | 'info' | 'warning';
+  timestamp: string;
+}
+
 export default function AdminDashboard() {
   const { user, logout } = useAuth();
   const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
+    activeJobs: 0,
+    activeEmployees: 0,
+    weeklyRevenue: 0,
+    weeklyProfit: 0
+  });
+  const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
+
+  const loadDashboardData = async () => {
+    setLoading(true);
+    try {
+      console.log('🏠 Dashboard: Loading REAL data from API...');
+      const response = await realApiService.getJobs();
+      
+      if (response.success) {
+        const allJobs = response.data;
+        
+        // Calculate active jobs (not completed or cancelled)
+        const activeJobs = allJobs.filter(job => 
+          !['completed', 'cancelled'].includes(job.status)
+        ).length;
+        
+        // Get unique active employees (workers with jobs)
+        const activeEmployeeIds = new Set(
+          allJobs
+            .filter(job => !['completed', 'cancelled'].includes(job.status))
+            .map(job => job.assignedEmployeeId)
+        );
+        const activeEmployees = activeEmployeeIds.size;
+        
+        // Calculate weekly revenue and profit
+        const oneWeekAgo = new Date();
+        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+        
+        const weeklyJobs = allJobs.filter(job => {
+          const jobDate = new Date(job.completedAt || job.createdAt);
+          return job.status === 'completed' && jobDate >= oneWeekAgo;
+        });
+        
+        const weeklyRevenue = weeklyJobs.reduce((total, job) => {
+          return total + (job.completionData?.totalAmount || 0);
+        }, 0);
+        
+        const weeklyExpenses = weeklyJobs.reduce((total, job) => {
+          return total + (job.completionData?.workerCommission || 0);
+        }, 0);
+        
+        const weeklyProfit = weeklyRevenue - weeklyExpenses;
+        
+        setDashboardStats({
+          activeJobs,
+          activeEmployees,
+          weeklyRevenue,
+          weeklyProfit
+        });
+        
+        // Generate recent activities from actual jobs
+        const recentCompletedJobs = allJobs
+          .filter(job => job.status === 'completed')
+          .sort((a, b) => new Date(b.completedAt || b.updatedAt).getTime() - new Date(a.completedAt || a.updatedAt).getTime())
+          .slice(0, 3);
+        
+        const activities: RecentActivity[] = recentCompletedJobs.map(job => ({
+          id: job.id,
+          message: `Lucrarea #${job.id} a fost finalizată de ${job.assignedEmployeeName}`,
+          type: 'success' as const,
+          timestamp: job.completedAt || job.updatedAt
+        }));
+        
+        // Add recent new jobs
+        const recentNewJobs = allJobs
+          .filter(job => job.status === 'assigned')
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+          .slice(0, 2);
+        
+        recentNewJobs.forEach(job => {
+          activities.push({
+            id: job.id + '_new',
+            message: `Nouă lucrare adăugată pentru ${job.address}`,
+            type: 'info' as const,
+            timestamp: job.createdAt
+          });
+        });
+        
+        // Sort by timestamp and limit to 5
+        activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        setRecentActivities(activities.slice(0, 5));
+        
+        console.log('✅ Dashboard: Real data loaded successfully!');
+      } else {
+        console.error('❌ Dashboard: API error:', response.error);
+      }
+    } catch (error) {
+      console.error('❌ Dashboard: Error loading data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!user || user.type !== 'admin') {
       router.replace('/');
+      return;
     }
+    
+    loadDashboardData();
+    
+    // Add REAL API listener for real-time updates
+    realApiService.addChangeListener('admin-dashboard-real', (hasChanges) => {
+      if (hasChanges) {
+        console.log('🏠 Dashboard: REAL API changes detected - syncing!');
+        loadDashboardData();
+      }
+    });
+    
+    return () => {
+      console.log('🧹 Dashboard: Cleaning up listeners');
+      realApiService.removeChangeListener('admin-dashboard-real');
+    };
   }, [user, router]);
 
   const handleLogout = async () => {
@@ -51,10 +181,30 @@ export default function AdminDashboard() {
   ];
 
   const stats = [
-    { title: 'Lucrări Active', value: '12', color: Colors.info, icon: Briefcase },
-    { title: 'Angajați Activi', value: '3', color: Colors.success, icon: Users },
-    { title: 'Venit Săptămânal', value: '2,450 RON', color: Colors.warning, icon: DollarSign },
-    { title: 'Profit', value: '1,200 RON', color: Colors.secondary, icon: BarChart3 },
+    { 
+      title: 'Lucrări Active', 
+      value: loading ? '...' : dashboardStats.activeJobs.toString(), 
+      color: Colors.info, 
+      icon: Briefcase 
+    },
+    { 
+      title: 'Angajați Activi', 
+      value: loading ? '...' : dashboardStats.activeEmployees.toString(), 
+      color: Colors.success, 
+      icon: Users 
+    },
+    { 
+      title: 'Venit Săptămânal', 
+      value: loading ? '...' : `${dashboardStats.weeklyRevenue.toLocaleString('ro-RO')} RON`, 
+      color: Colors.warning, 
+      icon: DollarSign 
+    },
+    { 
+      title: 'Profit', 
+      value: loading ? '...' : `${dashboardStats.weeklyProfit.toLocaleString('ro-RO')} RON`, 
+      color: Colors.secondary, 
+      icon: BarChart3 
+    },
   ];
 
   return (
@@ -291,35 +441,35 @@ export default function AdminDashboard() {
               <h3 className="text-lg font-semibold mb-4" style={{ color: Colors.text }}>
                 Activitate Recentă
               </h3>
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <div
-                    className="w-2 h-2 rounded-full"
-                    style={{ backgroundColor: Colors.success }}
-                  ></div>
-                  <p style={{ color: Colors.textSecondary }}>
-                    Lucrarea #1001 a fost finalizată de Robert
-                  </p>
+              {loading ? (
+                <div className="p-4 text-center">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 mx-auto mb-2" style={{ borderColor: Colors.secondary }}></div>
+                  <p className="text-sm" style={{ color: Colors.textSecondary }}>Se încarcă activitatea...</p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div
-                    className="w-2 h-2 rounded-full"
-                    style={{ backgroundColor: Colors.info }}
-                  ></div>
-                  <p style={{ color: Colors.textSecondary }}>
-                    Nouă lucrare adăugată pentru str. Aviatorilor
-                  </p>
+              ) : recentActivities.length === 0 ? (
+                <div className="text-center p-4">
+                  <p style={{ color: Colors.textSecondary }}>Nu există activitate recentă.</p>
+                  <p className="text-sm mt-1" style={{ color: Colors.textMuted }}>Activitatea va apărea după ce vor fi create sau finalizate joburi.</p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div
-                    className="w-2 h-2 rounded-full"
-                    style={{ backgroundColor: Colors.warning }}
-                  ></div>
-                  <p style={{ color: Colors.textSecondary }}>
-                    Demo User este în drum spre o nouă adresă
-                  </p>
+              ) : (
+                <div className="space-y-3">
+                  {recentActivities.map((activity) => {
+                    const dotColor = activity.type === 'success' ? Colors.success : 
+                                   activity.type === 'info' ? Colors.info : Colors.warning;
+                    return (
+                      <div key={activity.id} className="flex items-center gap-3">
+                        <div
+                          className="w-2 h-2 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: dotColor }}
+                        ></div>
+                        <p style={{ color: Colors.textSecondary }}>
+                          {activity.message}
+                        </p>
+                      </div>
+                    );
+                  })}
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </main>
