@@ -7,6 +7,7 @@ interface APIResponse<T> {
   data: T;
   timestamp: string;
   version: number;
+  error?: string; // Mesaj de eroare optional
 }
 
 interface ChangeLogEntry {
@@ -64,7 +65,8 @@ class RealAPIService {
         success: false,
         data: [],
         timestamp: new Date().toISOString(),
-        version: 0
+        version: 0,
+        error: error instanceof Error ? error.message : 'Unknown error occurred'
       };
     }
   }
@@ -96,7 +98,8 @@ class RealAPIService {
         success: false,
         data: {} as Job,
         timestamp: new Date().toISOString(),
-        version: 0
+        version: 0,
+        error: error instanceof Error ? error.message : 'Unknown error occurred'
       };
     }
   }
@@ -128,7 +131,8 @@ class RealAPIService {
         success: false,
         data: {} as Job,
         timestamp: new Date().toISOString(),
-        version: 0
+        version: 0,
+        error: error instanceof Error ? error.message : 'Unknown error occurred'
       };
     }
   }
@@ -156,7 +160,8 @@ class RealAPIService {
         success: false,
         data: false,
         timestamp: new Date().toISOString(),
-        version: 0
+        version: 0,
+        error: error instanceof Error ? error.message : 'Unknown error occurred'
       };
     }
   }
