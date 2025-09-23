@@ -1,5 +1,8 @@
 {
   "version": 2,
+  "framework": "nextjs",
+  "buildCommand": "prisma generate && prisma migrate deploy && npm run build",
+  "installCommand": "npm install",
   "env": {
     "NODE_ENV": "production"
   },
@@ -7,5 +10,11 @@
     "src/app/api/**/*.ts": {
       "maxDuration": 30
     }
-  }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    }
+  ]
 }
